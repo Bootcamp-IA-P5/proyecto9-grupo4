@@ -23,14 +23,14 @@ def connect():
         # Create engine
         engine = create_engine(DB_URL)
 
-        Session = sessionmaker(bind=engine)
+        Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         return Session()
 
     except Exception as e:
         print(f"❌ Error connecting: {e}")
+        return None
     
-
-# This is how to add to the table
+# Example. This is how to add to the table
 # new_person = Person(
 #     passport="B9876543", 
 #     name="María", 
@@ -41,12 +41,13 @@ def connect():
 # )
 # session.add(new_person)
 # session.commit()
-session = connect()
+# session = connect()
 
-people = session.query(Person).all()
+# Example. How to read from the database
+# people = session.query(Person).all()
 
-for person in people:
-    print(f"{person.last_name}, {person.name}")
+# for person in people:
+#     print(f"{person.last_name}, {person.name}")
 
-person=session.get(Person,1)
-print(person)
+# person=session.get(Person,1)
+# print(person)
