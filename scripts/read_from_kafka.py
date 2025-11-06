@@ -2,8 +2,7 @@
 Read from Kafka and delegate writes to MongoDB writer functions.
 This script only reads from Kafka.
 """
-from kafka import KafkaConsumer
-from kafka.errors import NoBrokersAvailable
+from confluent_kafka import Consumer, KafkaError, KafkaException
 import json
 import time
 import os
@@ -15,10 +14,10 @@ import sys
 load_dotenv()
 
 # Configuration
-KAFKA_BOOTSTRAP_SERVERS = ['localhost:29092']
+KAFKA_BOOTSTRAP_SERVERS = 'localhost:29092'  # Confluent Consumer uses string, not list
 KAFKA_TOPIC = 'probando'
-KAFKA_API_VERSION = (2, 5, 0)
-KAFKA_GROUP_ID = f'mongodb-consumer-{datetime.now().strftime("%Y%m%d%H%M%S")}'  # Unique group ID
+# Stable group ID - allows consumer to remember its position and resume from last committed offset
+KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'mongodb-consumer-stable')
 
 # MongoDB configuration (database/collection names)
 MONGO_DATABASE = 'kafka_data'
@@ -37,25 +36,34 @@ RETRY_DELAY = 5  # seconds
 
 
 def connect_to_kafka():
-    """Connect to Kafka with retry logic"""
+    """Connect to Kafka with retry logic using Confluent Consumer"""
     print("Connecting to Kafka...")
+    
+    # Confluent Kafka consumer configuration
+    conf = {
+        'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
+        'group.id': KAFKA_GROUP_ID,
+        'auto.offset.reset': 'earliest',         # Read from beginning on first run
+        'enable.auto.commit': True,              # Auto-commit offsets
+        'auto.commit.interval.ms': 5000,         # Commit every 5 seconds
+        'max.poll.interval.ms': 300000,          # Max time between polls
+        'session.timeout.ms': 30000,             # Session timeout
+        'fetch.min.bytes': 1,                    # Don't wait to accumulate data
+        'fetch.wait.max.ms': 500                 # Reduce fetch wait time
+    }
+    
     for attempt in range(MAX_RETRIES):
         try:
-            consumer = KafkaConsumer(
-                KAFKA_TOPIC,
-                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-                api_version=KAFKA_API_VERSION,
-                value_deserializer=lambda x: json.loads(x.decode('utf-8')),
-                group_id=KAFKA_GROUP_ID
-            )
+            consumer = Consumer(conf)
+            consumer.subscribe([KAFKA_TOPIC])
             print("✓ Connected to Kafka successfully!")
             return consumer
-        except NoBrokersAvailable:
+        except KafkaException as e:
             if attempt < MAX_RETRIES - 1:
                 print(f"⚠ Kafka not ready yet, retrying in {RETRY_DELAY}s... (attempt {attempt + 1}/{MAX_RETRIES})")
                 time.sleep(RETRY_DELAY)
             else:
-                print("✗ Failed to connect to Kafka after multiple attempts")
+                print(f"✗ Failed to connect to Kafka after multiple attempts: {e}")
                 raise
 
 
@@ -63,33 +71,49 @@ def process_messages(consumer, collection):
     """Read messages from Kafka and store via the writer functions"""
     print("Starting to consume messages... (Press Ctrl+C to stop)\n")
     message_count = 0
+    batch_start_time = None
+    batch_size = 100  # Measure every 100 messages
+    
     try:
-        for message in consumer:
+        while True:
+            # Poll for messages (timeout in seconds)
+            msg = consumer.poll(timeout=1.0)
+            
+            if msg is None:
+                continue  # No message available, keep polling
+            
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    # End of partition - not an error
+                    continue
+                else:
+                    # Real error
+                    print(f"Consumer error: {msg.error()}")
+                    break
+            
+            # Successfully received a message
             if message_count == 0:
                 print("DEBUG: First message received!")
-
-            # Add metadata to the message
-            document = {
-                'kafka_metadata': {
-                    'topic': message.topic,
-                    'partition': message.partition,
-                    'offset': message.offset,
-                    'timestamp': message.timestamp,
-                    'key': message.key
-                },
-                'data': message.value,
-                'inserted_at': datetime.utcnow()
-            }
+                batch_start_time = time.time()  # Start first batch timer
+            
+            # Deserialize JSON value
+            try:
+                document = json.loads(msg.value().decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                print(f"⚠ Failed to decode message at offset {msg.offset()}: {e}")
+                continue
 
             # Insert into MongoDB via functional writer
-            result = insert_document(collection, document)
+            insert_document(collection, document)
             message_count += 1
-
-            print(f"[{message_count}] Inserted document ID: {result.inserted_id}")
-            print(f"    Data: {message.value}")
-            print("-" * 60)
-    except StopIteration:
-        print("DEBUG: StopIteration - no more messages")
+            
+            # Report batch statistics every N messages
+            if message_count % batch_size == 0:
+                batch_time = time.time() - batch_start_time
+                batch_rate = batch_size / batch_time
+                print(f"[{message_count}] Batch of {batch_size}: {batch_time:.2f}s, {batch_rate:.2f} msg/s")
+                batch_start_time = time.time()  # Reset batch timer
+                
     except KeyboardInterrupt:
         print(f"\n\n✓ Stopping consumer...")
         print(f"✓ Total messages processed: {message_count}")
