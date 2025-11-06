@@ -12,7 +12,7 @@ load_dotenv()
 # MongoDB Atlas configuration
 MONGO_URI = os.getenv('MONGO_ATLAS_URI')
 if not MONGO_URI:
-    raise ValueError("MONGO_ATLAS_URI not found in .env file. Please set your MongoDB Atlas connection string.")
+    raise ValueError("MONGO_ATLAS_URI not found in environment or .env file. Please set your MongoDB Atlas connection string.")
 
 print("Connecting to MongoDB Atlas...\n")
 
