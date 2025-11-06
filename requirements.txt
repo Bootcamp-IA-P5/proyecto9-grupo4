@@ -1,0 +1,4 @@
+# Project runtime dependencies
+kafka-python
+pymongo
+python-dotenv
