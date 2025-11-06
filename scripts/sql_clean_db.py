@@ -2,10 +2,13 @@ from sqlalchemy import text
 
 from src.database.sql_alchemy import connect
 
+# This SQL script first drops all existing tables to ensure a clean slate,
+# then recreates them. This is useful for development and testing to reset the database schema.
 sql_query="""
 ---
 --- Delete tables
 ---
+-- The CASCADE option automatically drops any objects that depend on the tables (like foreign keys).
 DROP TABLE 
     "WORK", 
     "BANK", 
@@ -43,6 +46,7 @@ CREATE TABLE "ADDRESS"(
 ---
 --- PERSON_ADDRESS TABLE (Junction Table)
 --- We use a COMPOSITE primary key made up of the two foreign keys
+--- This table creates a many-to-many relationship between PERSON and ADDRESS.
 ---
 CREATE TABLE "PERSON_ADDRESS"(
    "address_id" BIGINT NOT NULL,
@@ -77,6 +81,7 @@ CREATE TABLE "WORK"(
 
 ---
 --- Foreign Key Definitions (Relations)
+--- These constraints enforce referential integrity between the tables.
 ---
 
 ALTER TABLE
@@ -89,18 +94,24 @@ ALTER TABLE
    "PERSON_ADDRESS" ADD CONSTRAINT "person_address_person_id_foreign" FOREIGN KEY("person_id") REFERENCES "PERSON"("id");
 """
 
+# --- Main execution block ---
+
+# Prompt the user for confirmation because this is a destructive operation.
 print("This will recreate the database. All data in the database will be lost!!!")
 cmd = input("Do you which to continue? (y/n) ")
 
+# Only proceed if the user explicitly agrees.
 if cmd.lower() == "y":
     session = connect()
     if session is not None:
         try:
+            # Execute the raw SQL query within a transaction.
             session.execute(text(sql_query))
             session.commit()
-            print("Database has been cleaned.")
+            print("\n✅ Database has been successfully cleaned and recreated.")
         except Exception as e:
-            session.rollback() # Rollback if an error occurs
+            # If any error occurs, roll back the transaction to leave the database in a consistent state.
+            session.rollback()
             print(f"❌ Error executing raw SQL in session: {e}")
 else:
-    print("Aborted.")
+    print("\nAborted by user.")
