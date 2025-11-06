@@ -47,7 +47,7 @@ def insert_document(collection, document: dict):
     """Insert a single document into the provided collection and return InsertOneResult."""
     if collection is None:
         raise RuntimeError("No collection provided to insert_document")
-    return collection.insert_one(document)
+    collection.insert_one(document)
 
 
 def close_connection(client):
