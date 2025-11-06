@@ -45,7 +45,8 @@ def connect_to_kafka():
                 KAFKA_TOPIC,
                 bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
                 api_version=KAFKA_API_VERSION,
-                value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+                value_deserializer=lambda x: json.loads(x.decode('utf-8')),
+                group_id=KAFKA_GROUP_ID
             )
             print("✓ Connected to Kafka successfully!")
             return consumer
