@@ -3,6 +3,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from src.database.sql_alchemy import connect
 from src.database.models.sql import Base
+from src.core.logger import Logger
+
+log = Logger()
 
 def recreate_database(engine, force=False):
     """
@@ -14,22 +17,22 @@ def recreate_database(engine, force=False):
         force (bool): If True, bypasses the confirmation prompt.
     """
     if not force:
-        print("⚠️ WARNING: This will drop all tables and delete all data in the database.")
+        log.warning("This will drop all tables and delete all data in the database.")
         confirm = input("Are you sure you want to continue? (y/n) ")
         if confirm.lower() != 'y':
-            print("\nAborted by user.")
+            log.info("Aborted by user.")
             return
 
-    print("\nDropping all tables...")
+    log.info("Dropping all tables...")
     try:
         # Drop all tables defined in the Base metadata
         Base.metadata.drop_all(engine)
-        print("Recreating all tables from models...")
+        log.info("Recreating all tables from models...")
         # Create all tables defined in the Base metadata
         Base.metadata.create_all(engine)
-        print("\n✅ Database has been successfully cleaned and recreated.")
+        log.info("✅ Database has been successfully cleaned and recreated.")
     except SQLAlchemyError as e:
-        print(f"❌ An error occurred during database recreation: {e}")
+        log.error(f"An error occurred during database recreation: {e}")
 
 def main():
     """
@@ -46,7 +49,7 @@ def main():
         finally:
             session.close()
     else:
-        print("❌ Could not establish a database connection.")
+        log.critical("Could not establish a database connection.")
 
 if __name__ == "__main__":
     main()

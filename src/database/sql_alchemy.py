@@ -1,9 +1,13 @@
+from email import message
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 import os
 
 from src.database.models.sql import Address, Bank, Person, PersonAddress, Work
+from src.core.logger import Logger
+
+log = Logger()
 
 def connect():
     """
@@ -16,6 +20,7 @@ def connect():
         sqlalchemy.orm.Session: A new session object if the connection is successful, otherwise None.
     """
     load_dotenv()
+    log.debug("Connecting to PostgreSQL...")
 
     USER = os.getenv("SQL_USER")
     PASSWORD = os.getenv("SQL_PASSWORD")
@@ -31,10 +36,12 @@ def connect():
 
         # Create a session factory
         Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        log.debug("✓ Connected to PostgreSQL successfully!")
+        # Create a new session
         return Session()
 
     except Exception as e:
-        print(f"❌ Error connecting: {e}")
+        log.error(f"❌ Error connecting: {e}")
         return None
     
 def read_from_mongo(session, json):
@@ -49,14 +56,16 @@ def read_from_mongo(session, json):
         json (dict): A dictionary containing the data to be processed, expected to have a "Golden" key
                      with a list of records.
     """
+    log.info("Starting to read from MongoDB and populate PostgreSQL...")
     # Iterate over each record in the "Golden" key of the input JSON
     records_processed = 0
     records_skipped = 0
     for record in json["Golden"]:
         # Check if a person with this passport ID already exists in the database.
+        log.debug(f"Checking for existing person with passport: {record['_id']}")
         existing_person = session.query(Person).filter(Person.passport == record["_id"]).first()
         if existing_person:
-            print(f"ℹ️  Skipping existing person with passport: {record['_id']}")
+            log.warning(f"Skipping existing person with passport: {record['_id']}")
             records_skipped += 1
             continue
 
@@ -71,6 +80,7 @@ def read_from_mongo(session, json):
         # Add the person to the session and flush to get the generated primary key (id)
         session.add(person)
         session.flush()
+        log.debug(f"Flushed person {person.passport} to get ID: {person.id}")
         person_id = person.id
 
         # Create a Bank object related to the person
@@ -124,8 +134,6 @@ def read_from_mongo(session, json):
 
     # Commit the transaction to save all changes to the database
     session.commit()
-    print("-" * 60)
-    print(f"✅ Transaction committed successfully.")
-    print(f"   {records_processed} new records inserted.")
-    print(f"   {records_skipped} duplicate records skipped.")
+    log.info("Transaction committed successfully.")
+    log.info(f"Summary: {records_processed} new records inserted, {records_skipped} duplicate records skipped.")
     

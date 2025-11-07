@@ -9,8 +9,11 @@ import time
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
+from src.core.logger import Logger
 
 load_dotenv()
+
+log = Logger()
 
 
 def connect_to_mongodb(database: str = 'kafka_data', collection_name: str = 'probando_messages', uri: str | None = None, max_retries: int = 5, retry_delay: int = 5):
@@ -21,32 +24,36 @@ def connect_to_mongodb(database: str = 'kafka_data', collection_name: str = 'pro
     """
     uri = uri or os.getenv('MONGO_ATLAS_URI')
     if not uri:
-        raise ValueError("MONGO_ATLAS_URI not found in environment. Please set it in a .env file or environment variables.")
+        message = "MONGO_ATLAS_URI not found in environment. Please set it in a .env file or environment variables."
+        log.critical(message)
+        raise ValueError(message)
 
-    print("Connecting to MongoDB...")
+    log.info("Connecting to MongoDB...")
     for attempt in range(max_retries):
         try:
             client = MongoClient(uri, serverSelectionTimeoutMS=5000)
             client.admin.command('ping')
             db = client[database]
             collection = db[collection_name]
-            print("✓ Connected to MongoDB successfully!")
-            print(f"  Database: {database}")
-            print(f"  Collection: {collection_name}\n")
+            log.info("✓ Connected to MongoDB successfully!")
+            log.debug(f"  Database: {database}")
+            log.debug(f"  Collection: {collection_name}")
             return client, collection
-        except ConnectionFailure:
+        except ConnectionFailure as e:
             if attempt < max_retries - 1:
-                print(f"⚠ MongoDB not ready yet, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
+                log.warning(f"MongoDB not ready yet, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
                 time.sleep(retry_delay)
             else:
-                print("✗ Failed to connect to MongoDB after multiple attempts")
-                raise
+                message = f"Failed to connect to MongoDB after multiple attempts: {e}"
+                log.error(message)
+                raise ConnectionFailure(message)
 
 
 def insert_document(collection, document: dict):
     """Insert a single document into the provided collection."""
     if collection is None:
         raise RuntimeError("No collection provided to insert_document")
+    # log.debug(f"Inserting document with keys: {list(document.keys())}")
     collection.insert_one(document)
 
 
@@ -54,4 +61,4 @@ def close_connection(client):
     """Close the provided MongoClient connection."""
     if client:
         client.close()
-        print("✓ MongoDB connection closed")
+        log.info("✓ MongoDB connection closed")

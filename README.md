@@ -38,7 +38,8 @@ proyecto9-grupo4/
 │   ├── core/
 │   │   ├── kafka_consumer.py      # 1. (tentative) Reads from Kafka and writes to MongoDB (Collection A)
 │   │   ├── data_processor.py      # 2. (tentative) Processing logic: A -> B
-│   │   └── rel_writer.py          # 3. (tentative) Read from B and write to Relational DB
+│   │   ├── rel_writer.py          # 3. (tentative) Read from B and write to Relational DB
+│   │   └── logger.py              # Logging configuration and utilities
 │   ├── database/
 │   │   ├── models/
 │   │   │   └── sql.py             # SQLAlchemy ORM models

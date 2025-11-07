@@ -4,6 +4,9 @@ import argparse
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.database.sql_alchemy import connect, read_from_mongo
+from src.core.logger import Logger
+
+log = Logger()
 
 def load_json_data(file_path):
     """
@@ -19,9 +22,9 @@ def load_json_data(file_path):
         with open(file_path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"❌ Error: Data file not found at {file_path}")
+        log.error(f"Data file not found at {file_path}")
     except json.JSONDecodeError:
-        print(f"❌ Error: Could not decode JSON from {file_path}. Check file format.")
+        log.error(f"Could not decode JSON from {file_path}. Check file format.")
     return None
 
 def main(data_file):
@@ -32,26 +35,26 @@ def main(data_file):
     Args:
         data_file (str): Path to the JSON data file to load.
     """
-    print(f"Attempting to load data from: {data_file}")
+    log.info(f"Attempting to load data from: {data_file}")
     json_data = load_json_data(data_file)
     if not json_data:
-        print("Aborting due to file loading error.")
+        log.critical("Aborting due to file loading error.")
         return
 
     session = connect()
     if not session:
-        print("❌ Could not establish a database connection. Data loading aborted.")
+        log.critical("Could not establish a database connection. Data loading aborted.")
         return
 
     try:
         read_from_mongo(session, json_data)
-        print(f"✅ Successfully loaded data from {data_file} into the database.")
+        log.info(f"✅ Successfully loaded data from {data_file} into the database.")
     except SQLAlchemyError as e:
         session.rollback()
-        print(f"❌ A database error occurred: {e}")
+        log.error(f"A database error occurred: {e}")
     except KeyError as e:
         session.rollback()
-        print(f"❌ A key error occurred, check if the JSON data structure is correct: {e}")
+        log.error(f"A key error occurred, check if the JSON data structure is correct: {e}")
     finally:
         session.close()
 

@@ -10,6 +10,9 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.exc import SQLAlchemyError
 from src.database.models.sql import Address, Bank, Person, PersonAddress, Work
 from src.database.sql_alchemy import connect
+from src.core.logger import Logger
+
+log = Logger()
 
 def create_person_dataset_query():
     """
@@ -59,39 +62,38 @@ def main(output_file):
     """
     session = connect()
     if not session:
-        print("❌ Could not establish a database connection. Aborting.")
+        log.critical("Could not establish a database connection. Aborting.")
         return
 
     try:
         stmt = create_person_dataset_query()
-        print("Executing query and fetching data...")
+        log.info(f"Executing query to create dataset '{output_file}'...")
         
         # Execute the query and get a result object
         cursor_result = session.execute(stmt)
         result = cursor_result.all()
         column_names = cursor_result.keys()
 
-        if not result:
-            print("⚠️ Query returned no data. The output file will be empty.")
+        if result:
+            log.info(f"Query returned {len(result)} records.")
+        else:
+            log.warning("Query returned no data. The output file will be empty.")
         
         # Create a pandas DataFrame from the query results.
         df = pd.DataFrame(result, columns=column_names)
 
         # Save the DataFrame to a CSV file.
         df.to_csv(output_file, index=False)
-
-        print(f"\n✅ Successfully exported {len(df)} rows to {output_file}")
-        print("--- First 5 Rows of the Dataset ---")
-        print(df.head())
+        log.info(f"✅ Successfully exported {len(df)} records to {output_file}")
 
     except SQLAlchemyError as e:
-        print(f"❌ A database error occurred: {e}")
+        log.error(f"A database error occurred: {e}")
     except IOError as e:
-        print(f"❌ An error occurred while writing the file: {e}")
+        log.error(f"An error occurred while writing the file: {e}")
     except Exception as e:
-        print(f"❌ An unexpected error occurred: {e}")
+        log.error(f"An unexpected error occurred: {e}")
     finally:
-        print("Closing database session.")
+        log.info("Closing database session.")
         session.close()
 
 if __name__ == "__main__":

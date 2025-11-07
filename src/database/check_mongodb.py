@@ -4,22 +4,32 @@ Check MongoDB Atlas for stored Kafka messages
 from pymongo import MongoClient
 from datetime import datetime
 import os
+import sys
 from dotenv import load_dotenv
+
+# Ensure project root is on sys.path to allow importing `src` modules
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from src.core.logger import Logger
 
 # Load environment variables
 load_dotenv()
 
+log = Logger()
+
 # MongoDB Atlas configuration
 MONGO_URI = os.getenv('MONGO_ATLAS_URI')
 if not MONGO_URI:
-    raise ValueError("MONGO_ATLAS_URI not found in environment or .env file. Please set your MongoDB Atlas connection string.")
+    message = "MONGO_ATLAS_URI not found in environment or .env file. Please set your MongoDB Atlas connection string."
+    log.critical(message)
+    raise ValueError(message)
 
 print("Connecting to MongoDB Atlas...\n")
 
 # Connect to MongoDB
 client = MongoClient(MONGO_URI)
-db = client['kafka_data']
-collection = db['probando_messages']
 try:
     db = client['kafka_data']
     collection = db['probando_messages']
@@ -54,4 +64,5 @@ try:
     else:
         print("No documents found yet. Make sure the consumer is running!")
 finally:
+    log.debug("Closing MongoDB connection.")
     client.close()

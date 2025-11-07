@@ -30,9 +30,12 @@ if PROJECT_ROOT not in sys.path:
 
 # Import functional writer API
 from src.database.write_to_mongodb import connect_to_mongodb, insert_document, close_connection
+from src.core.logger import Logger
 
 MAX_RETRIES = 5
 RETRY_DELAY = 5  # seconds
+
+log = Logger()
 
 
 def connect_to_kafka():
@@ -63,8 +66,8 @@ def connect_to_kafka():
                 print(f"⚠ Kafka not ready yet, retrying in {RETRY_DELAY}s... (attempt {attempt + 1}/{MAX_RETRIES})")
                 time.sleep(RETRY_DELAY)
             else:
-                print(f"✗ Failed to connect to Kafka after multiple attempts: {e}")
-                raise
+                log.error(f"Failed to connect to Kafka after multiple attempts: {e}")
+                raise KafkaException(f"Failed to connect to Kafka after multiple attempts: {e}")
 
 
 def process_messages(consumer, collection):
@@ -76,23 +79,28 @@ def process_messages(consumer, collection):
     
     try:
         while True:
+            # log.debug("Polling for Kafka messages...")
             # Poll for messages (timeout in seconds)
             msg = consumer.poll(timeout=1.0)
             
             if msg is None:
                 continue  # No message available, keep polling
             
+            # log.debug(f"Received message from Kafka. Topic: {msg.topic()}, Partition: {msg.partition()}, Offset: {msg.offset()}")
             if msg.error():
                 if msg.error().code() == KafkaError._PARTITION_EOF:
                     # End of partition - not an error
+                    log.debug(f"Reached end of partition {msg.partition()} for topic {msg.topic()}")
                     continue
                 else:
                     # Real error
-                    print(f"Consumer error: {msg.error()}")
+                    log.error(f"Consumer error: {msg.error()}")
                     break
             
             # Successfully received a message
             if message_count == 0:
+                # Replaced with debug log
+                log.debug("First message received!")
                 batch_start_time = time.time()  # Start first batch timer
             
             # Deserialize JSON value
@@ -136,7 +144,7 @@ def process_messages(consumer, collection):
         print(f"\n\n✓ Stopping consumer...")
         print(f"✓ Total messages processed: {message_count}")
     except Exception as e:
-        print(f"ERROR: {type(e).__name__}: {e}")
+        log.error(f"An unexpected error occurred during message processing: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
     finally:
