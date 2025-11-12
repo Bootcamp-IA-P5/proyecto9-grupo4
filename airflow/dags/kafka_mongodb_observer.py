@@ -49,7 +49,7 @@ def check_mongodb_connection(**context):
     Verifies that MongoDB is available and accessible.
     This is the most basic task - just attempts to connect.
     """
-    logging.info("🔍 Verificando conexión a MongoDB...")
+    logging.info("🔍 Checking MongoDB connection...")
     
     try:
         client = MongoClient(
@@ -59,23 +59,23 @@ def check_mongodb_connection(**context):
         
         # Ping to verify real connection
         client.admin.command('ping')
-        logging.info("✓ MongoDB está accesible")
+        logging.info("✓ MongoDB is accessible")
         
         # List available databases
         databases = client.list_database_names()
-        logging.info(f"✓ Bases de datos disponibles: {databases}")
+        logging.info(f"✓ Available databases: {databases}")
         
         # Verify that our database exists
         if MONGO_DATABASE in databases:
-            logging.info(f"✓ Base de datos '{MONGO_DATABASE}' existe")
+            logging.info(f"✓ Database '{MONGO_DATABASE}' exists")
         else:
-            logging.warning(f"⚠ Base de datos '{MONGO_DATABASE}' no existe aún")
+            logging.warning(f"⚠ Database '{MONGO_DATABASE}' does not exist yet")
         
         client.close()
         return True
         
     except Exception as e:
-        logging.error(f"✗ MongoDB no accesible: {type(e).__name__}: {e}")
+        logging.error(f"✗ MongoDB not accessible: {type(e).__name__}: {e}")
         raise
 
 
@@ -87,7 +87,7 @@ def check_data_freshness(**context):
     Verifies that data in MongoDB is recent.
     This tells you if your read_from_kafka.py script is working.
     """
-    logging.info("🔍 Verificando frescura de datos...")
+    logging.info("🔍 Checking data freshness...")
     
     try:
         client = MongoClient(MONGO_URI)
@@ -96,15 +96,15 @@ def check_data_freshness(**context):
         
         # Count total documents
         total_docs = collection.count_documents({})
-        logging.info(f"📊 Total de documentos en colección: {total_docs}")
+        logging.info(f"📊 Total documents in collection: {total_docs}")
         
         if total_docs == 0:
-            logging.warning("⚠ La colección está vacía - no se han ingestado datos aún")
+            logging.warning("⚠ Collection is empty - no data has been ingested yet")
             client.close()
             return {
                 'status': 'empty',
                 'total_documents': 0,
-                'message': 'No hay datos aún'
+                'message': 'No data yet'
             }
         
         # Get last inserted document (using _id which contains timestamp)
@@ -116,18 +116,18 @@ def check_data_freshness(**context):
             now = datetime.now()
             age = now - doc_timestamp
             
-            logging.info(f"📅 Último documento insertado hace: {age}")
+            logging.info(f"📅 Last document inserted: {age} ago")
             logging.info(f"📅 Timestamp: {doc_timestamp.isoformat()}")
             
             # Define freshness threshold (15 minutes)
             threshold = timedelta(minutes=15)
             
             if age > threshold:
-                logging.warning(f"⚠ Los datos están desactualizados!")
-                logging.warning(f"   Última inserción: {age} (threshold: {threshold})")
+                logging.warning(f"⚠ Data is stale!")
+                logging.warning(f"   Last insertion: {age} (threshold: {threshold})")
                 status = 'stale'
             else:
-                logging.info(f"✓ Datos frescos: última inserción hace {age}")
+                logging.info(f"✓ Data is fresh: last insertion {age} ago")
                 status = 'fresh'
             
             result = {
@@ -145,12 +145,12 @@ def check_data_freshness(**context):
             return result
             
         else:
-            logging.warning("⚠ No se pudo obtener el último documento")
+            logging.warning("⚠ Could not get the last document")
             client.close()
             return {'status': 'unknown', 'total_documents': total_docs}
             
     except Exception as e:
-        logging.error(f"✗ Error verificando frescura: {type(e).__name__}: {e}")
+        logging.error(f"✗ Error checking data freshness: {type(e).__name__}: {e}")
         import traceback
         logging.error(traceback.format_exc())
         raise
@@ -164,7 +164,7 @@ def calculate_insertion_rate(**context):
     Calculates how many documents are being inserted per minute.
     Helps you understand your pipeline's throughput.
     """
-    logging.info("🔍 Calculando tasa de inserción...")
+    logging.info("🔍 Calculating insertion rate...")
     
     try:
         client = MongoClient(MONGO_URI)
@@ -187,16 +187,16 @@ def calculate_insertion_rate(**context):
         
         rate_per_minute = recent_docs / 10.0
         
-        logging.info(f"📈 Documentos últimos 10 min: {recent_docs}")
-        logging.info(f"📈 Tasa de inserción: {rate_per_minute:.2f} docs/min")
+        logging.info(f"📈 Documents in last 10 minutes: {recent_docs}")
+        logging.info(f"📈 Insertion rate: {rate_per_minute:.2f} docs/min")
         
         # Additional analysis
         if rate_per_minute == 0:
-            logging.warning("⚠ No hay inserciones recientes - el consumidor puede estar detenido")
+            logging.warning("⚠ No recent insertions - consumer might be stopped")
         elif rate_per_minute < 1:
-            logging.warning(f"⚠ Tasa de inserción baja: {rate_per_minute:.2f} docs/min")
+            logging.warning(f"⚠ Low insertion rate: {rate_per_minute:.2f} docs/min")
         else:
-            logging.info(f"✓ Pipeline activo con {rate_per_minute:.2f} docs/min")
+            logging.info(f"✓ Pipeline active with {rate_per_minute:.2f} docs/min")
         
         result = {
             'recent_documents': recent_docs,
@@ -211,7 +211,7 @@ def calculate_insertion_rate(**context):
         return result
         
     except Exception as e:
-        logging.error(f"✗ Error calculando tasa: {type(e).__name__}: {e}")
+        logging.error(f"✗ Error calculating rate: {type(e).__name__}: {e}")
         import traceback
         logging.error(traceback.format_exc())
         raise
@@ -225,7 +225,7 @@ def generate_health_summary(**context):
     Generates a visual summary of the complete pipeline status.
     This task combines the results of all previous tasks.
     """
-    logging.info("📋 Generando resumen de salud del pipeline...")
+    logging.info("📋 Generating pipeline health summary...")
     
     ti = context['task_instance']
     
@@ -252,33 +252,33 @@ def generate_health_summary(**context):
     
     # Formatted and beautiful log
     logging.info("=" * 70)
-    logging.info("📊 RESUMEN DE SALUD DEL PIPELINE KAFKA → MongoDB")
+    logging.info("📊 KAFKA → MONGODB PIPELINE HEALTH SUMMARY")
     logging.info("=" * 70)
-    logging.info(f"🚦 Estado General: {pipeline_status.upper()}")
+    logging.info(f"🚦 Overall Status: {pipeline_status.upper()}")
     logging.info("-" * 70)
     
     if freshness:
-        logging.info(f"📦 Total documentos: {freshness.get('total_documents', 'N/A')}")
-        logging.info(f"🕐 Última inserción: {freshness.get('age_human_readable', 'N/A')}")
-        logging.info(f"✨ Estado datos: {freshness.get('status', 'N/A').upper()}")
+        logging.info(f"📦 Total documents: {freshness.get('total_documents', 'N/A')}")
+        logging.info(f"🕐 Last insertion: {freshness.get('age_human_readable', 'N/A')}")
+        logging.info(f"✨ Data status: {freshness.get('status', 'N/A').upper()}")
     
     if rate:
-        logging.info(f"📈 Tasa inserción: {rate.get('rate_per_minute', 0):.2f} docs/min")
-        logging.info(f"📊 Últimos 10 min: {rate.get('recent_documents', 0)} documentos")
-        logging.info(f"📅 Estimación diaria: {rate.get('estimated_daily_rate', 0):.0f} docs/día")
+        logging.info(f"📈 Insertion rate: {rate.get('rate_per_minute', 0):.2f} docs/min")
+        logging.info(f"📊 Last 10 min: {rate.get('recent_documents', 0)} documents")
+        logging.info(f"📅 Estimated daily: {rate.get('estimated_daily_rate', 0):.0f} docs/day")
     
     logging.info("=" * 70)
     
     # Recommendations based on status
-    logging.info("\n💡 RECOMENDACIONES:")
+    logging.info("\n💡 RECOMMENDATIONS:")
     if pipeline_status == 'no_data':
-        logging.info("   → Ejecuta scripts/read_from_kafka.py para comenzar la ingesta")
+        logging.info("   → Run scripts/read_from_kafka.py to start ingestion")
     elif pipeline_status == 'degraded':
-        logging.info("   → Los datos están desactualizados. Verifica que read_from_kafka.py esté corriendo")
+        logging.info("   → Data is stale. Verify that read_from_kafka.py is running")
     elif pipeline_status == 'stalled':
-        logging.info("   → No hay inserciones recientes. Verifica Kafka y el consumidor")
+        logging.info("   → No recent insertions. Check Kafka and consumer")
     else:
-        logging.info("   → Todo funcionando correctamente ✓")
+        logging.info("   → Everything working correctly ✓")
     
     logging.info("")
     
