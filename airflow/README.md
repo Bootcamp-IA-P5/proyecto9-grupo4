@@ -34,7 +34,6 @@ Simple auth manager | Password for user 'admin': "PASSWORD_AIRFLOW"
 - Usuario: `admin`
 - Password: La que obtuviste arriba
 
-- Password: El que obtuviste arriba
 
 ---
 
