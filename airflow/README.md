@@ -33,8 +33,10 @@ Simple auth manager | Password for user 'admin': "PASSWORD_AIRFLOW"
 ### 3. Access Airflow
 
 **URL:** http://localhost:8080
-- **Username:** `admin`
-- **Password:** The one you obtained above
+- Usuario: `admin`
+- Password: La que obtuviste arriba
+
+- Password: El que obtuviste arriba
 
 ---
 
