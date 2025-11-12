@@ -57,8 +57,6 @@ docker logs -f airflow-scheduler   # Scheduler
 
 ---
 
-3. **Abrir WSL2** y seguir las instrucciones de instalación local
-
 ## 📊 Usar el DAG de Observación
 
 ### Activar el DAG
