@@ -323,4 +323,4 @@ task_summary = PythonOperator(
 # 3. Calculate insertion rate
 # 4. Generate final summary
 
-task_check_mongo >> task_check_freshness >> task_calculate_rate >> task_summary
+task_check_mongo >> task_check_freshness >> task_calculate_rate >> task_summary 

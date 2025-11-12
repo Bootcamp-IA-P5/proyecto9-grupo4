@@ -1,56 +1,56 @@
-# Guía de Inicio Rápido: Apache Airflow
+# Quick Start Guide: Apache Airflow
 
-Esta guía te ayudará a configurar y ejecutar Apache Airflow para observar tu pipeline Kafka → MongoDB.
+This guide will help you set up and run Apache Airflow to monitor your Kafka → MongoDB pipeline.
 
-## 🚀 Inicio Rápido
+> ⚠️ **Important:** This DAG **ONLY OBSERVES** the pipeline. It does NOT execute the Kafka consumer. Make sure you have `scripts/read_from_kafka.py` running separately.
 
-### 1. Levantar Airflow con Docker
+## 🚀 Quick Start
+
+### 1. Start Airflow with Docker
 
 ```bash
 docker-compose -f docker-compose-airflow.yml up -d
 ```
 
-**¡Listo!** Este comando:
-- ✅ Levanta todos los contenedores de Airflow
-- ✅ Crea automáticamente el usuario `admin`
-- ✅ Genera una contraseña segura
+**Done!** This command:
+- ✅ Starts all Airflow containers
+- ✅ Automatically creates the `admin` user
+- ✅ Generates a secure password
 
-### Obtener la contraseña
+### 2. Get the Password
 
-Espera ~1 minuto y ejecuta:
+Wait ~1 minute and run:
 
 ```bash
 docker logs airflow-webserver 2>&1 | grep -i password
 ```
 
-Verás algo como:
+You'll see something like:
 ```
 Simple auth manager | Password for user 'admin': "PASSWORD_AIRFLOW"
 ```
 
-### Acceder a Airflow
+### 3. Access Airflow
 
 **URL:** http://localhost:8080
-- Usuario: `admin`
-- Password: La que obtuviste arriba
-
-- Password: El que obtuviste arriba
+- **Username:** `admin`
+- **Password:** The one you obtained above
 
 ---
 
-## 🛑 Comandos Útiles
+## 🛑 Useful Commands
 
-**Detener Airflow (mantiene password):**
+**Stop Airflow (keeps password):**
 ```bash
 docker-compose -f docker-compose-airflow.yml down
 ```
 
-**Detener y borrar todo (regenera password):**
+**Stop and clean everything (regenerates password):**
 ```bash
 docker-compose -f docker-compose-airflow.yml down -v
 ```
 
-**Ver logs:**
+**View logs in real-time:**
 ```bash
 docker logs -f airflow-webserver   # Webserver
 docker logs -f airflow-scheduler   # Scheduler
@@ -58,61 +58,72 @@ docker logs -f airflow-scheduler   # Scheduler
 
 ---
 
-3. **Abrir WSL2** y seguir las instrucciones de instalación local
+## 📊 Using the Monitoring DAG
 
-## 📊 Usar el DAG de Observación
+> � **Note:** This DAG **observes** the pipeline. Make sure you have running:
+> - Kafka broker
+> - Kafka consumer ([`scripts/read_from_kafka.py`](../scripts/read_from_kafka.py))
+> - MongoDB
 
-### Activar el DAG
+### 1. Activate the DAG
 
-1. En la UI de Airflow, busca el DAG: `kafka_mongodb_health_monitor`
-2. Activa el toggle (debe ponerse en azul/verde)
-3. El DAG se ejecutará automáticamente cada 10 minutos
-## 📊 Usar el DAG de Monitoreo
+1. In the Airflow UI, search for: `kafka_mongodb_health_monitor`
+2. Toggle it on (it will turn blue/green)
+3. It will execute automatically every 10 minutes
 
-### 1. Activar el DAG
+### 2. Manual Execution (Testing)
 
-1. En la UI de Airflow, busca: `kafka_mongodb_health_monitor`
-2. Activa el toggle (se pone azul/verde)
-3. Se ejecutará automáticamente cada 10 minutos
+1. Click on the DAG name
+2. Click "▶️ Trigger DAG"
+3. Click "Trigger"
 
-### 2. Ejecutar Manualmente (Testing)
+### 3. View Results
 
-1. Click en el nombre del DAG
-2. Click en "▶️ Trigger DAG"
-3. Click en "Trigger"
+Click on the `generate_health_summary` task → "Log"
 
-### 3. Ver Logs
-
-Click en la tarea `generate_health_summary` → "Log"
-
-Verás algo como:
+You'll see something like:
 ```
-📊 RESUMEN DE SALUD DEL PIPELINE KAFKA → MongoDB
-🚦 Estado General: HEALTHY
-📦 Total documentos: 5247
-🕐 Última inserción: 0:00:12
-📈 Tasa inserción: 45.20 docs/min
+======================================================================
+📊 KAFKA → MONGODB PIPELINE HEALTH SUMMARY
+======================================================================
+🚦 Overall Status: HEALTHY
+----------------------------------------------------------------------
+📦 Total documents: 5247
+🕐 Last insertion: 0:00:12
+✨ Data status: FRESH
+📈 Insertion rate: 45.20 docs/min
+======================================================================
+
+💡 RECOMMENDATIONS:
+   → Everything working correctly ✓
 ```
+
+**What does the DAG monitor?**
+- ✅ MongoDB connection
+- ✅ Data freshness (last insertion time)
+- ✅ Insertion rate (documents/minute)
+- ✅ Estimated daily volume
 
 ---
 
-## 🔧 Configuración Avanzada
+## 🔧 Advanced Configuration
 
-### Cambiar frecuencia de monitoreo
+### Change Monitoring Frequency
 
-Edita `airflow/dags/kafka_mongodb_observer.py`:
+Edit `airflow/dags/kafka_mongodb_observer.py`:
 
 ```python
-schedule_interval='*/10 * * * *',  # Cada 10 minutos
+schedule_interval='*/10 * * * *',  # Every 10 minutes
 ```
 
-Ejemplos:
-- `'*/5 * * * *'` = Cada 5 minutos
-- `'0 * * * *'` = Cada hora
+Examples:
+- `'*/5 * * * *'` = Every 5 minutes
+- `'0 * * * *'` = Every hour
+- `'0 */6 * * *'` = Every 6 hours
 
-### Cambiar base de datos MongoDB
+### Change MongoDB Database
 
-Edita la variable de entorno en `.env`:
+Edit the environment variable in `.env`:
 ```bash
 MONGO_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/
 ```
@@ -121,31 +132,32 @@ MONGO_ATLAS_URI=mongodb+srv://user:pass@cluster.mongodb.net/
 
 ## 🐛 Troubleshooting
 
-**El DAG no aparece:**
-- Espera 30 segundos (Airflow escanea cada 30s)
-- Verifica: `docker logs airflow-scheduler`
+**DAG doesn't appear:**
+- Wait 30 seconds (Airflow scans every 30s)
+- Check: `docker logs airflow-scheduler`
 
-**Error de conexión a MongoDB:**
-- Verifica tu `MONGO_ATLAS_URI` en `.env`
-- Asegúrate que la IP está en whitelist de MongoDB Atlas
+**MongoDB connection error:**
+- Verify your `MONGO_ATLAS_URI` in `.env`
+- Make sure your IP is whitelisted in MongoDB Atlas
 
-**Ver logs completos:**
+**"Data status: STALE" (data is outdated):**
+- ⚠️ The Kafka consumer is NOT running
+- Verify: `python scripts/read_from_kafka.py`
+
+**"Insertion rate = 0":**
+- ⚠️ The Kafka consumer is stopped
+- ⚠️ Kafka has no new messages on the topic
+
+**View complete logs:**
 ```bash
 docker logs -f airflow-scheduler
 ```
 
 ---
-```bash
-airflow db reset
-```
 
-**Listar DAGs:**
-```bash
-airflow dags list
----
+## 📚 Resources
 
-## 📚 Recursos
-
-- [Documentación Airflow 3.0](https://airflow.apache.org/docs/apache-airflow/stable/)
+- [Apache Airflow 3.0 Documentation](https://airflow.apache.org/docs/apache-airflow/stable/)
 - [Cron Expression Generator](https://crontab.guru/)
+- [MongoDB Atlas Documentation](https://docs.atlas.mongodb.com/)
 
