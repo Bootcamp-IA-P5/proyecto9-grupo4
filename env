@@ -1,6 +1,0 @@
-# MongoDB Atlas Configuration (Cloud)
-MONGO_ATLAS_URI=mongodb+srv://proj9_mongo_user:QshANKmI4XwLPss4@f5-project9-mongocluste.clxrm2x.mongodb.net/?retryWrites=true&w=majority
-
-# Credentials (for reference)
-# Username: proj9_mongo_user
-# Password: QshANKmI4XwLPss4
