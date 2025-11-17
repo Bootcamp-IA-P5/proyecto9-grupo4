@@ -192,6 +192,12 @@ def read_from_mongo_collection(session, mongo_collection):
             else:
                 sex = sex_value
             
+            # Validate sex is not None (NOT NULL constraint in database)
+            if not sex:
+                log.warning(f"Skipping record {passport}: missing required 'sex' field")
+                records_with_errors += 1
+                continue
+            
             # Create Person object
             person = Person(
                 passport=passport,
@@ -230,10 +236,14 @@ def read_from_mongo_collection(session, mongo_collection):
 
             # Create an Address object for the person's home (if address exists)
             if record.get("address"):
+                # Handle IPv4 field - use default if None or missing
+                ipv4_value = record.get("IPv4")
+                home_ip = ipv4_value if ipv4_value else "0.0.0.0"
+                
                 home_address = Address(
                     street_name=record.get("address"),
                     city=record.get("city", "Unknown"),
-                    ip_address=record.get("IPv4", "0.0.0.0")
+                    ip_address=home_ip
                 )
                 
                 # Create the association between the person and their home address
