@@ -117,6 +117,7 @@ def process_messages(consumer, collection):
             if ts is not None and isinstance(ts, tuple) and len(ts) == 2 and ts[1] != -1:
                 kafka_timestamp = ts[1]
 
+            # Simple structure: metadata, data, inserted_at (matches consolidation script expectations)
             document_with_metadata = {
                 'kafka_metadata': {
                     'topic': msg.topic(),

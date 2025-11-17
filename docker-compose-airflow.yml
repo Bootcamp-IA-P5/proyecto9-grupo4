@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:13
+  postgres: #Airflow's metadata store
+    image: postgres:13 
     container_name: airflow-postgres
     environment:
       POSTGRES_USER: airflow
@@ -11,17 +11,17 @@ services:
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5432:5432" #PostgreSQL port 5432, allowing external connections if needed
 
-  airflow-webserver:
+  airflow-webserver: #provides the web-based user interface for managing and monitoring workflows
     image: apache/airflow:3.0.0
     container_name: airflow-webserver
     depends_on:
       - postgres
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor #tasks run locally within the same machine rather than being distributed across multiple workers
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: '' #empty key means encryption is disabled, which is fine for local development but should never be used in production environments.
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       # Airflow admin credentials from .env
@@ -37,11 +37,11 @@ services:
     ports:
       - "8080:8080"
     command: >
-      bash -c "pip install python-dotenv pymongo &&
+      bash -c "pip install python-dotenv pymongo && 
                airflow db migrate &&
-               airflow standalone"
-
-  airflow-scheduler:
+               airflow standalone" 
+    # 'airflow standalone' command runs both the webserver and a scheduler in a single process. ¡¡¡¡potential conflict since we also have a separate scheduler service!!!! 2 schedulers competing to schedule the same tasks can lead to duplicate task executions and unpredictable behavior. we should run only airflow webserver instead of airflow standalone
+  airflow-scheduler: #responsible for parsing DAG files, determining which tasks need to run, and triggering their execution. The scheduler continuously monitors your DAGs and schedules tasks based on their dependencies and timing requirements.
     image: apache/airflow:3.0.0
     container_name: airflow-scheduler
     depends_on:
@@ -60,7 +60,7 @@ services:
     command: >
       bash -c "pip install python-dotenv pymongo &&
                airflow scheduler"
-
+    # 'pip install python-dotenv pymongo' is inefficient because these packages are installed every time the containers start. A better approach would be to create a custom Docker image with these dependencies baked in, or use Airflow's requirements.txt mechanism
 volumes:
   postgres-db-volume:
   airflow-data:

@@ -1,6 +1,7 @@
 """
-Observation DAG - Monitors Kafka → MongoDB pipeline health
-Does NOT execute the consumer, only observes the system state.
+DAGs  = Directed Acyclic Graphs (Airflow's workflow definitions)
+This DAG  monitors Kafka → MongoDB pipeline health
+It Does NOT execute the consumer, only observes the system state.
 
 This DAG monitors the pipeline without modifying anything.
 """

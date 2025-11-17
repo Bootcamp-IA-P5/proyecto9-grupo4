@@ -136,4 +136,149 @@ def read_from_mongo(session, json):
     session.commit()
     log.info("Transaction committed successfully.")
     log.info(f"Summary: {records_processed} new records inserted, {records_skipped} duplicate records skipped.")
+
+
+def read_from_mongo_collection(session, mongo_collection):
+    """
+    Reads golden records directly from a MongoDB collection and populates the PostgreSQL database.
+
+    This is the preferred method for production use - it reads directly from MongoDB's golden_records
+    collection instead of requiring a pre-formatted JSON structure.
+
+    Args:
+        session (sqlalchemy.orm.Session): The database session to use for the transaction.
+        mongo_collection: PyMongo collection object pointing to the golden_records collection.
+    """
+    log.info("Starting to read from MongoDB golden collection and populate PostgreSQL...")
+    records_processed = 0
+    records_skipped = 0
+    records_with_errors = 0
+    
+    # Get total count for progress tracking
+    total_records = mongo_collection.count_documents({})
+    log.info(f"Found {total_records} golden records to process")
+    
+    for idx, record in enumerate(mongo_collection.find(), 1):
+        if idx % 100 == 0:
+            log.info(f"Progress: {idx}/{total_records} records processed")
+        
+        try:
+            # Check if a person with this passport ID already exists in the database
+            passport = record.get('_id') or record.get('passport')
+            if not passport:
+                log.warning(f"Skipping record without passport: {record}")
+                records_with_errors += 1
+                continue
+            
+            log.debug(f"Checking for existing person with passport: {passport}")
+            existing_person = session.query(Person).filter(Person.passport == passport).first()
+            if existing_person:
+                log.warning(f"Skipping existing person with passport: {passport}")
+                records_skipped += 1
+                continue
+
+            # Validate required fields
+            name = record.get("name")
+            last_name = record.get("last_name")
+            if not name or not last_name:
+                log.warning(f"Skipping record with missing name/last_name: {passport}")
+                records_with_errors += 1
+                continue
+            
+            # Handle sex field (might be array or string)
+            sex_value = record.get("sex")
+            if isinstance(sex_value, list):
+                sex = sex_value[0] if sex_value else None
+            else:
+                sex = sex_value
+            
+            # Create Person object
+            person = Person(
+                passport=passport,
+                name=name,
+                last_name=last_name,
+                sex=sex,
+                email=record.get("email"),
+                phone=record.get("telfnumber")
+            )
+            
+            # Add the person to the session and flush to get the generated primary key (id)
+            session.add(person)
+            session.flush()
+            log.debug(f"Flushed person {person.passport} to get ID: {person.id}")
+            person_id = person.id
+
+            # Create a Bank object related to the person (if bank data exists)
+            if record.get("IBAN") or record.get("salary"):
+                bank = Bank(
+                    person_id=person_id,
+                    iban=record.get("IBAN"),
+                    salary=record.get("salary")
+                )
+                session.add(bank)
+            
+            # Create a Work object related to the person (if work data exists)
+            if record.get("company"):
+                work = Work(
+                    person_id=person_id,
+                    company=record.get("company"),
+                    position=record.get("job"),
+                    phone=record.get("company_telfnumber"),
+                    email=record.get("company_email")
+                )
+                session.add(work)
+
+            # Create an Address object for the person's home (if address exists)
+            if record.get("address"):
+                home_address = Address(
+                    street_name=record.get("address"),
+                    city=record.get("city", "Unknown"),
+                    ip_address=record.get("IPv4", "0.0.0.0")
+                )
+                
+                # Create the association between the person and their home address
+                home_association = PersonAddress(
+                    address=home_address,
+                    type='Home'
+                )
+                person.address_associations.append(home_association)
+                session.add_all([home_address, home_association])
+            
+            # Create an Address object for the person's work (if company address exists)
+            if record.get("company address"):
+                # Only create work address if we have city data (NOT NULL constraint)
+                work_city = record.get("city")
+                if work_city:  # Skip work address if city is None
+                    work_address = Address(
+                        street_name=record.get("company address"),
+                        city=work_city,
+                        ip_address="0.0.0.0"
+                    )
+                    
+                    # Create the association between the person and their work address
+                    work_association = PersonAddress(
+                        address=work_address,
+                        type='Work'
+                    )
+                    person.address_associations.append(work_association)
+                    session.add_all([work_address, work_association])
+
+            records_processed += 1
+            
+        except Exception as e:
+            log.error(f"Error processing record {passport}: {e}")
+            records_with_errors += 1
+            # Rollback the session to clear the error state
+            session.rollback()
+            # Continue processing other records
+
+    # Commit the transaction to save all changes to the database
+    try:
+        session.commit()
+        log.info("Transaction committed successfully.")
+        log.info(f"Summary: {records_processed} new records inserted, {records_skipped} duplicate records skipped, {records_with_errors} records with errors.")
+    except Exception as e:
+        session.rollback()
+        log.error(f"Error committing transaction: {e}")
+        raise
     

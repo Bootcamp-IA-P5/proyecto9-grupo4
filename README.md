@@ -2,13 +2,46 @@
 
 The primary goal of this project is to implement a robust and scalable data pipeline that processes data in real-time. The pipeline demonstrates the integration of several key technologies:
 
--   **Data Ingestion**: Consume streaming data from a **Kafka** topic.
+-   **Data Ingestion**: Consume streaming data from a **Kafka** topic with 5 different schemas.
 -   **Data Staging**: Store the raw, unstructured data in a **MongoDB** collection, which acts as a flexible staging area.
--   **Data Processing & Storage**: Transform the data from MongoDB and load it into a structured **PostgreSQL** relational database for querying and analysis.
+-   **Data Consolidation**: Merge the 5 disparate schemas into unified "golden records" representing complete individual profiles.
+-   **Data Processing & Storage**: Transform the consolidated data from MongoDB and load it into a structured **PostgreSQL** (Supabase) relational database for querying and analysis.
 
-This project serves as a practical example of building an ETL (Extract, Transform, Load) process suitable for modern data engineering challenges, all within a containerized development environment.
+This project serves as a practical example of building an ETL (Extract, Transform, Load) process suitable for modern data engineering challenges, all within a containerized development environment with Apache Airflow orchestration.
 
 The project management board can be found [here](https://github.com/orgs/Bootcamp-IA-P5/projects/16).
+
+## Pipeline Architecture
+
+```
+┌─────────────┐
+│   Kafka     │  5 schemas: Personal, Location, Professional, Bank, Network
+│  (5 schemas)│
+└──────┬──────┘
+       │ read_from_kafka.py
+       ↓
+┌─────────────────────────┐
+│  MongoDB                │
+│  probando_messages      │  ← Raw, unconsolidated Kafka messages
+│  (staging)              │
+└──────┬──────────────────┘
+       │ consolidate_mongodb_records.py
+       ↓
+┌─────────────────────────┐
+│  MongoDB                │
+│  golden_records         │  ← Consolidated person-level records
+│  (consolidated)         │
+└──────┬──────────────────┘
+       │ mongodb_to_supabase.py
+       ↓
+┌─────────────────────────┐
+│  Supabase (PostgreSQL)  │
+│  - person               │
+│  - bank                 │  ← Normalized relational model
+│  - work                 │
+│  - address              │
+└─────────────────────────┘
+```
 
 # Getting Started
 
@@ -36,90 +69,150 @@ To get the development environment up and running, follow these steps. For more 
 proyecto9-grupo4/
 ├── airflow/                       # Apache Airflow for pipeline orchestration
 │   ├── dags/
-│   │   └── kafka_mongodb_observer.py  # DAG for monitoring Kafka→MongoDB pipeline
+│   │   ├── kafka_mongodb_observer.py      # DAG for monitoring Kafka→MongoDB pipeline
+│   │   └── complete_etl_pipeline.py       # 🆕 Full ETL orchestration DAG
 │   ├── README.md                  # Airflow setup and usage guide
 │   └── setup_airflow.sh          # Installation script
 ├── src/
 │   ├── core/
-│   │   ├── kafka_consumer.py      # 1. (tentative) Reads from Kafka and writes to MongoDB (Collection A)
-│   │   ├── data_processor.py      # 2. (tentative) Processing logic: A -> B
-│   │   ├── rel_writer.py          # 3. (tentative) Read from B and write to Relational DB
 │   │   └── logger.py              # Logging configuration and utilities
 │   ├── database/
 │   │   ├── models/
 │   │   │   └── sql.py             # SQLAlchemy ORM models
-│   │   ├── sql_alchemy.py         # Functions to connect and write to PostgreSQL
-│   │   └── write_to_mongodb.py    # Functions to connect and write to MongoDB
+│   │   ├── sql_alchemy.py         # 🔄 Enhanced: PostgreSQL connection & ETL functions
+│   │   ├── write_to_mongodb.py    # Functions to connect and write to MongoDB
+│   │   └── check_mongodb.py       # MongoDB inspection utilities
 │   └── __init__.py                # Makes 'src' a Python package
 ├── config/
-│   ├── settings.py                # (tentative) Environment/configuration variables read at startup
-│   └── kafka.ini                  # (tentative) Kafka-specific configuration file (or .env)
+│   ├── settings.py                # Environment/configuration variables
+│   └── kafka.ini                  # Kafka-specific configuration
 ├── tests/
-│   ├── data
-│   │   └── test_data.json         # Fake data to test load from mongo to PostgreSQL 
-│   ├── test_kafka_consumer.py     # (tentative) Tests the Kafka consumer
-│   ├── test_data_processor.py     # (tentative) Tests the data processor
-│   └── test_mongodb_connector.py  # (tentative) Tests the MongoDB connector
+│   ├── data/
+│   │   └── test_data.json         # Sample golden records for testing
+│   └── test_consolidation.py      # 🆕 Tests for consolidation logic
 ├── scripts/
-│   ├── read_from_kafka.py         # 1. Reads from Kafka and writes to MongoDB
-│   ├── sql_load_db.py             # Utility to load test data into the SQL database
-│   ├── sql_clean_db.py            # Utility to clean and recreate the SQL database
-│   └── sql_dump_db.py             # Utility to export SQL data to a CSV file
+│   ├── read_from_kafka.py         # 1️⃣ Reads from Kafka → MongoDB (raw)
+│   ├── consolidate_mongodb_records.py  # 🆕 2️⃣ Consolidates 5 schemas → golden records
+│   ├── mongodb_to_supabase.py     # 🆕 3️⃣ Loads golden records → Supabase
+│   ├── CONSOLIDATION_README.md    # 🆕 Detailed consolidation documentation
+│   ├── sql_load_db.py             # Utility to load test data into SQL database
+│   ├── sql_clean_db.py            # Utility to clean and recreate SQL database
+│   └── sql_dump_db.py             # Utility to export SQL data to CSV
 ├── .devcontainer/
 │   └── devcontainer.json          # VSCode Dev Container configuration
 ├── .github/
 │   └── ISSUE_TEMPLATE/            # GitHub issue templates
-├── requirements.txt               # List of project dependencies (e.g., kafka-python, pymongo, sqlalchemy)
+├── requirements.txt               # List of project dependencies
 ├── .env.example                   # Example environment variables file
 └── README.md                      # Project documentation
 ```
+
+🆕 = Newly added components for data consolidation
 
 # Usage
 
 This section describes how to run the various scripts provided in the project.
 
-### Running Scripts
+## Complete ETL Pipeline
 
-1. **Read from Kafka and write to MongoDB**
+### Option 1: Automated with Airflow (Recommended)
+
+The complete pipeline is orchestrated by the `complete_etl_pipeline` DAG:
+
+```sh
+# 1. Start Airflow (if not already running)
+cd airflow
+./setup_airflow.sh
+
+# 2. Access Airflow UI: http://localhost:8080 (admin/admin)
+# 3. Enable and trigger the 'complete_etl_pipeline' DAG
+```
+
+The DAG runs hourly and executes:
+1. ✅ Check for new raw Kafka messages
+2. 🔄 Consolidate records (5 schemas → golden records)
+3. 📤 Load golden records → Supabase
+4. ✔️ Validate data integrity
+
+### Option 2: Manual Execution
+
+Run each stage of the pipeline manually:
+
+**Stage 1: Kafka → MongoDB (Raw)**
 ```sh
 python -m scripts.read_from_kafka
 ```
+This continuously reads Kafka messages and stores them in `kafka_data.probando_messages`.
 
-2. **Monitor pipeline with Airflow** (see [`airflow/README.md`](airflow/README.md) for setup)
+**Stage 2: MongoDB Raw → Golden Records**
 ```sh
-# Terminal 1 - Start scheduler
-export AIRFLOW_HOME="$(pwd)/airflow"
-airflow scheduler
+# Production run
+python scripts/consolidate_mongodb_records.py
 
-# Terminal 2 - Start webserver
-export AIRFLOW_HOME="$(pwd)/airflow"
-airflow webserver --port 8080
+# Dry run (test without writing)
+python scripts/consolidate_mongodb_records.py --dry-run
+```
+This consolidates the 5 schemas into unified golden records in `kafka_data.golden_records`.
 
-# Access UI: http://localhost:8080 (admin/admin)
+**Stage 3: MongoDB Golden → Supabase**
+```sh
+python scripts/mongodb_to_supabase.py
+```
+This loads golden records into PostgreSQL tables (person, bank, work, address).
+
+## Testing
+
+Test the consolidation logic with sample data:
+```sh
+python tests/test_consolidation.py
 ```
 
-3. Load data into PostgreSQL
+## Database Utilities
+
+**Load test data into PostgreSQL:**
 ```sh
 python -m scripts.sql_load_db [-h|--file FILE]
 ```
 
-4. Clean the PostgreSQL database
+**Clean the PostgreSQL database:**
 ```sh
 python -m scripts.sql_clean_db [-h|-f|--force]
 ```
 
-5. Dump PostgreSQL database into a csv file
+**Dump PostgreSQL database to CSV:**
 ```sh
-python -m scripts.dump_db [-h|[-o|--output] OUTPUT]
+python -m scripts.sql_dump_db [-h|[-o|--output] OUTPUT]
 ```
 
-## 📊 Observability with Apache Airflow
+## Monitoring & Observability
 
-This project includes Apache Airflow for pipeline monitoring and orchestration. The DAG `kafka_mongodb_health_monitor` provides:
+### Airflow DAGs
 
-- **Real-time health checks**: MongoDB connectivity and data freshness
-- **Metrics tracking**: Insertion rate, document count, pipeline status
-- **Visual monitoring**: Graph view of pipeline dependencies
-- **Alerting**: Detect stale data or pipeline failures
+1. **`kafka_mongodb_health_monitor`** - Monitors stage 1 (Kafka → MongoDB)
+   - Checks MongoDB connectivity
+   - Validates data freshness
+   - Tracks insertion rates
 
-For complete setup instructions, see [`airflow/README.md`](airflow/README.md).
+2. **`complete_etl_pipeline`** - Orchestrates full pipeline
+   - Runs consolidation
+   - Loads to Supabase
+   - Validates data integrity
+
+Access Airflow UI: http://localhost:8080 (admin/admin)
+
+### Manual Monitoring
+
+**Check MongoDB collections:**
+```sh
+python src/database/check_mongodb.py
+```
+
+**Check Supabase tables:**
+```sql
+-- In Supabase SQL Editor
+SELECT 
+  (SELECT COUNT(*) FROM person) as persons,
+  (SELECT COUNT(*) FROM bank) as banks,
+  (SELECT COUNT(*) FROM work) as work,
+  (SELECT COUNT(*) FROM address) as addresses;
+```
