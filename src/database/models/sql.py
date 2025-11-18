@@ -9,7 +9,8 @@ class Person(Base):
     """
     Represents a person in the database.
     """
-    __tablename__ = 'PERSON' 
+    __tablename__ = 'PERSON'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)   # Unique identifier for the person
     passport = Column(String(255), nullable=False)                  # Passport number of the person
@@ -44,6 +45,7 @@ class Address(Base):
     Represents a physical address in the database.
     """
     __tablename__ = 'ADDRESS'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)   # Unique identifier for the address
     street_name = Column(String(255), nullable=False)               # Street name of the address
@@ -73,6 +75,7 @@ class PersonAddress(Base):
     and an address to be associated with multiple people.
     """
     __tablename__ = 'PERSON_ADDRESS'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     # --- Composite Primary Key ---
     address_id = Column(BigInteger, ForeignKey("ADDRESS.id"), primary_key=True) # Foreign key to ADDRESS.id
@@ -96,6 +99,7 @@ class Bank(Base):
     Represents bank details associated with a person.
     """
     __tablename__ = 'BANK'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)                           # Unique identifier for the bank record
     person_id = Column(BigInteger, ForeignKey("PERSON.id"), nullable=False) # Foreign key to PERSON.id
@@ -115,6 +119,7 @@ class Work(Base):
     Represents work/employment details for a person.
     """
     __tablename__ = 'WORK'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)           # Unique identifier for the work record
     person_id = Column(BigInteger, ForeignKey('PERSON.id'), nullable=False) # Foreign key to PERSON.id

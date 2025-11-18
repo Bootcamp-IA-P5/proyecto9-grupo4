@@ -48,7 +48,58 @@ dag = DAG(
 
 
 # ============================================================================
-# TASK 1: Check for New Raw Data
+# TASK 1: Start Kafka Consumer
+# ============================================================================
+def start_kafka_consumer(**context):
+    """
+    Start the Kafka consumer for a limited time to consume messages.
+    Runs for 30 seconds to allow messages to be consumed into MongoDB.
+    """
+    import subprocess
+    import time
+    
+    logging.info("🚀 Starting Kafka consumer...")
+    
+    consumer_script = os.path.join(PROJECT_ROOT, 'scripts', 'read_from_kafka.py')
+    
+    try:
+        # Start consumer as subprocess with timeout
+        process = subprocess.Popen(
+            ['python', consumer_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        logging.info("⏱ Running consumer for 30 seconds...")
+        
+        # Let it run for 30 seconds
+        time.sleep(30)
+        
+        # Terminate the consumer
+        process.terminate()
+        
+        try:
+            # Wait for graceful shutdown (max 5 seconds)
+            stdout, stderr = process.communicate(timeout=5)
+            logging.info(f"Consumer output: {stdout}")
+            if stderr:
+                logging.warning(f"Consumer stderr: {stderr}")
+        except subprocess.TimeoutExpired:
+            # Force kill if it doesn't terminate gracefully
+            process.kill()
+            stdout, stderr = process.communicate()
+            
+        logging.info("✓ Kafka consumer stopped")
+        return {'status': 'success', 'duration_seconds': 30}
+        
+    except Exception as e:
+        logging.error(f"❌ Error running Kafka consumer: {e}")
+        raise
+
+
+# ============================================================================
+# TASK 2: Check for New Raw Data
 # ============================================================================
 def check_for_new_data(**context):
     """
@@ -103,7 +154,7 @@ def check_for_new_data(**context):
 
 
 # ============================================================================
-# TASK 2: Consolidate Records (Raw → Golden)
+# TASK 3: Consolidate Records (Raw → Golden)
 # ============================================================================
 def run_consolidation(**context):
     """
@@ -126,7 +177,7 @@ def run_consolidation(**context):
 
 
 # ============================================================================
-# TASK 3: Load to Supabase (Golden → PostgreSQL)
+# TASK 4: Load to Supabase (Golden → PostgreSQL)
 # ============================================================================
 def load_to_supabase(**context):
     """
@@ -149,64 +200,14 @@ def load_to_supabase(**context):
 
 
 # ============================================================================
-# TASK 4: Validate Data in Supabase
-# ============================================================================
-def validate_supabase_data(**context):
-    """
-    Validate that data was successfully loaded to Supabase.
-    """
-    from sqlalchemy import create_engine, text
-    from dotenv import load_dotenv
-    
-    load_dotenv()
-    
-    logging.info("✅ Validating Supabase data...")
-    
-    # Build connection URL
-    user = os.getenv("SQL_USER")
-    password = os.getenv("SQL_PASSWORD")
-    host = os.getenv("SQL_HOST")
-    port = os.getenv("SQL_PORT")
-    dbname = os.getenv("SQL_DBNAME")
-    
-    db_url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}?sslmode=require"
-    
-    try:
-        engine = create_engine(db_url)
-        
-        with engine.connect() as conn:
-            # Count records in each table
-            person_count = conn.execute(text("SELECT COUNT(*) FROM person")).scalar()
-            bank_count = conn.execute(text("SELECT COUNT(*) FROM bank")).scalar()
-            work_count = conn.execute(text("SELECT COUNT(*) FROM work")).scalar()
-            address_count = conn.execute(text("SELECT COUNT(*) FROM address")).scalar()
-            
-            logging.info(f"📊 Supabase record counts:")
-            logging.info(f"  - Persons: {person_count}")
-            logging.info(f"  - Banks: {bank_count}")
-            logging.info(f"  - Work: {work_count}")
-            logging.info(f"  - Addresses: {address_count}")
-            
-            result = {
-                'person_count': person_count,
-                'bank_count': bank_count,
-                'work_count': work_count,
-                'address_count': address_count,
-            }
-            
-            # Push to XCom
-            context['task_instance'].xcom_push(key='validation_results', value=result)
-            
-            return result
-            
-    except Exception as e:
-        logging.error(f"❌ Validation failed: {e}")
-        raise
-
-
-# ============================================================================
 # Define Task Dependencies
 # ============================================================================
+
+task_start_consumer = PythonOperator(
+    task_id='start_kafka_consumer',
+    python_callable=start_kafka_consumer,
+    dag=dag,
+)
 
 task_check_data = PythonOperator(
     task_id='check_for_new_data',
@@ -226,11 +227,5 @@ task_load_supabase = PythonOperator(
     dag=dag,
 )
 
-task_validate = PythonOperator(
-    task_id='validate_supabase_data',
-    python_callable=validate_supabase_data,
-    dag=dag,
-)
-
 # Set up the pipeline flow
-task_check_data >> task_consolidate >> task_load_supabase >> task_validate
+task_start_consumer >> task_check_data >> task_consolidate >> task_load_supabase
