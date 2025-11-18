@@ -21,9 +21,10 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor #tasks run locally within the same machine rather than being distributed across multiple workers
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__FERNET_KEY: '' #empty key means encryption is disabled, which is fine for local development but should never be used in production environments.
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      _PIP_ADDITIONAL_REQUIREMENTS: 'python-dotenv pymongo' #official Airflow mechanism that automatically installs the specified packages on container startup, caches the packages in the Docker volume (airflow-data). Is much faster on subsequent container restarts
       # Airflow admin credentials from .env
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
@@ -37,10 +38,9 @@ services:
     ports:
       - "8080:8080"
     command: >
-      bash -c "pip install python-dotenv pymongo && 
-               airflow db migrate &&
-               airflow standalone" 
-    # 'airflow standalone' command runs both the webserver and a scheduler in a single process. ¡¡¡¡potential conflict since we also have a separate scheduler service!!!! 2 schedulers competing to schedule the same tasks can lead to duplicate task executions and unpredictable behavior. we should run only airflow webserver instead of airflow standalone
+      bash -c "airflow db migrate &&
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
+               airflow webserver"
   airflow-scheduler: #responsible for parsing DAG files, determining which tasks need to run, and triggering their execution. The scheduler continuously monitors your DAGs and schedules tasks based on their dependencies and timing requirements.
     image: apache/airflow:3.0.0
     container_name: airflow-scheduler
@@ -49,7 +49,8 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      _PIP_ADDITIONAL_REQUIREMENTS: 'python-dotenv pymongo'
       # Environment variables for your project
       MONGO_ATLAS_URI: ${MONGO_ATLAS_URI}
     volumes:
@@ -57,10 +58,8 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       # - ./airflow/logs:/opt/airflow/logs
       - ./.env:/opt/airflow/.env
-    command: >
-      bash -c "pip install python-dotenv pymongo &&
-               airflow scheduler"
-    # 'pip install python-dotenv pymongo' is inefficient because these packages are installed every time the containers start. A better approach would be to create a custom Docker image with these dependencies baked in, or use Airflow's requirements.txt mechanism
+    command: airflow scheduler
+
 volumes:
   postgres-db-volume:
   airflow-data:
