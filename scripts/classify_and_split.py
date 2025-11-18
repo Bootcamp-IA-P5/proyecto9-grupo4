@@ -2,30 +2,23 @@
 """
 classify_and_split.py
 
-1) Inspect nested 'data' payloads inside collection `probando_messages`.
-   - Prints frequency of keys found in the inner `data` dict (top N keys)
-   - Prints up to 5 example `data` payloads per detected "shape"
+Inspect nested 'data' payloads inside `probando_messages` and optionally copy (split)
+documents into separate collections: formatA..formatE (safe copies, original _id kept
+in 'source_id').
 
-2) Optionally split documents into collections:
-   - formatA  (expects 'fullname' and 'address' inside data)
-   - formatB  (expects 'fullname' + company fields inside data)
-   - formatC  (address-only fragments inside data)
-   - formatD  (name +/- passport inside data)
-   - formatE  (passport + IBAN or salary inside data)
-   The splitting is safe: it inserts copies into new collections; it does NOT delete or modify original docs.
+Usage examples (from scripts/ with venv active and MONGO_URI set):
+  # dry-run inspect 200 docs (default SAMPLE_LIMIT)
+  python classify_and_split.py --limit 200
 
-USAGE:
-  # from project root, with venv active and MONGO_URI set:
-  cd scripts
-  python classify_and_split.py      # inspect only (default)
-  # To actually write split collections (careful, process SAMPLE_LIMIT docs only by default):
-  python classify_and_split.py --save
+  # save copies of up to 2000 docs into format* collections (no drop)
+  python classify_and_split.py --limit 2000 --save
 
-Notes:
-  - This script uses SAMPLE_LIMIT to avoid OOM on dev machines. Set SAMPLE_LIMIT=None to process all docs (risky).
-  - Adjust heuristics in `detect_format()` if your field names differ from expectations.
+  # drop existing format* collections first, then save (fresh start)
+  python classify_and_split.py --save --fresh
+
+  # process entire source collection (risky on dev machine)
+  python classify_and_split.py --limit None --save --fresh
 """
-
 import os
 import argparse
 import json
@@ -36,10 +29,10 @@ from pymongo import MongoClient
 DB_NAME = "kafka_data"
 RAW_COLL = "probando_messages"
 
-# Change to None to scan entire collection (be careful with memory)
-SAMPLE_LIMIT = 2000
+# default sample limit for quick tests; set to None to scan the whole source (use with care)
+DEFAULT_SAMPLE_LIMIT = 2000
 
-# When --save is passed, docs will be inserted into these collections. Otherwise nothing is written.
+# output collections (target)
 OUT_A = "formatA"
 OUT_B = "formatB"
 OUT_C = "formatC"
@@ -47,51 +40,7 @@ OUT_D = "formatD"
 OUT_E = "formatE"
 OUT_UNKNOWN = "format_unknown"
 
-MONGO_URI = os.getenv("MONGO_URI")
-if not MONGO_URI:
-    raise SystemExit("Set MONGO_URI first")
-
-client = MongoClient(MONGO_URI)
-db = client['kafka_data']
-
-source_coll = db['probando_messages']
-target_collections = {
-    'formatA': db['formatA'],
-    'formatB': db['formatB'],
-    'formatC': db['formatC'],
-    'formatD': db['formatD'],
-    'formatE': db['formatE'],
-    'format_unknown': db['format_unknown']
-}
-
-def classify(doc):
-    data = doc.get('data', {})
-    keys = set(k.lower() for k in data.keys())
-    if 'fullname' in keys and 'address' in keys and 'city' in keys:
-        return 'formatA'
-    elif 'fullname' in keys and 'company' in keys:
-        return 'formatB'
-    elif 'address' in keys and 'ipv4' in keys:
-        return 'formatC'
-    elif 'name' in keys and 'passport' in keys:
-        return 'formatD'
-    elif 'passport' in keys and 'iban' in keys:
-        return 'formatE'
-    else:
-        return 'format_unknown'
-
-batch_size = 1000
-cursor = source_coll.find({})
-for i, doc in enumerate(cursor, start=1):
-    fmt = classify(doc)
-    target_collections[fmt].insert_one(doc)
-    if i % batch_size == 0:
-        print(f"Processed {i} documents...")
-
-print("Classification complete. Counts:")
-for name, coll in target_collections.items():
-    print(f"  {name}: {coll.count_documents({})}")
-# ---------- Helper: format detection heuristics ----------
+# ---------- Format detection heuristics ----------
 def detect_format_from_data(data: dict) -> str:
     """
     Return 'A'..'E' or 'unknown' based on keys present in the nested `data` dict.
@@ -101,21 +50,20 @@ def detect_format_from_data(data: dict) -> str:
         return 'unknown'
     keys = set(k.lower() for k in data.keys())
 
-    # Format A: has fullname and address (home-person fragment)
+    # Format A: has fullname and address (+city)
     if 'fullname' in keys and 'address' in keys:
         return 'A'
 
-    # Format B: fullname + company info (company fragment)
-    # We check for presence of 'company' or 'company address' or 'company_telfnumber' or 'company email'
+    # Format B: fullname + company info
     company_tokens = {'company', 'company address', 'company_address', 'company_telfnumber', 'company email', 'company_email'}
     if 'fullname' in keys and (keys & company_tokens):
         return 'B'
 
-    # Format E: passport + IBAN or salary (sensitive financial fragment) - prefer E before D if passport + IBAN present
+    # Format E: passport + IBAN or salary (financial)
     if 'passport' in keys and ('iban' in keys or 'salary' in keys or 'iban_number' in keys):
         return 'E'
 
-    # Format D: name + passport OR name fields (identity fragment)
+    # Format D: passport + name OR name + last_name
     if ('passport' in keys and ('name' in keys or 'last_name' in keys)) or ('name' in keys and 'last_name' in keys):
         return 'D'
 
@@ -123,14 +71,15 @@ def detect_format_from_data(data: dict) -> str:
     if 'address' in keys and 'fullname' not in keys and 'name' not in keys:
         return 'C'
 
-    # Fallback: if it has 'name' but not passport, assume D-ish
+    # Fallback: if it has 'name' but not passport, treat as D-ish
     if 'name' in keys:
         return 'D'
 
     return 'unknown'
 
-# ---------- Utility: pretty preview for nested data (safe) ----------
+# ---------- Utility ----------
 def data_preview(data, max_chars=150):
+    """Make a small preview of nested data for printing examples."""
     if data is None:
         return None
     preview = {}
@@ -141,71 +90,99 @@ def data_preview(data, max_chars=150):
             preview[k] = type(v).__name__
     return preview
 
-# ---------- Main ----------
-def main(save=False, sample_limit=SAMPLE_LIMIT):
+# ---------- Main logic ----------
+def main(save=False, sample_limit=DEFAULT_SAMPLE_LIMIT, fresh=False):
     uri = os.getenv("MONGO_URI")
     if not uri:
         raise SystemExit("ERROR: set MONGO_URI environment variable in this shell before running.")
 
-    client = MongoClient(uri, serverSelectionTimeoutMS=10000)
+    client = MongoClient(uri, serverSelectionTimeoutMS=20000)
     db = client[DB_NAME]
+
     if RAW_COLL not in db.list_collection_names():
         raise SystemExit(f"ERROR: collection '{RAW_COLL}' not found in DB '{DB_NAME}'. Available: {db.list_collection_names()}")
 
-    coll = db[RAW_COLL]
-    cursor = coll.find({}, {}).limit(sample_limit) if sample_limit else coll.find({}, {})
+    # prepare target collections
+    targets = {
+        'A': db[OUT_A],
+        'B': db[OUT_B],
+        'C': db[OUT_C],
+        'D': db[OUT_D],
+        'E': db[OUT_E],
+        'unknown': db[OUT_UNKNOWN]
+    }
 
-    # Counters & samples
+    # If fresh requested, drop any existing target collections (clean start)
+    if fresh and save:
+        print("Dropping existing target collections (fresh start)...")
+        for name in targets.values():
+            try:
+                name.drop()
+            except Exception as e:
+                print("  drop error:", e)
+
+    # If saving, ensure an index on source_id to speed up skip-checks and make idempotent
+    if save:
+        for coll in targets.values():
+            try:
+                coll.create_index('source_id')
+            except Exception:
+                pass
+
+    # Build the cursor
+    src_coll = db[RAW_COLL]
+    cursor = src_coll.find({}, {})
+    if sample_limit is not None:
+        cursor = cursor.limit(sample_limit)
+
+    # counters & samples
     key_counter = Counter()
     format_counter = Counter()
     samples_by_format = defaultdict(list)
 
     processed = 0
+    batch_print = 500
+
+    print("Starting scan. save=%s, sample_limit=%s, fresh=%s" % (save, sample_limit, fresh))
     for doc in cursor:
         processed += 1
+        nested = doc.get('data', {}) or {}
 
-        # the actual payload appears to be nested in `data` according to your preview
-        nested = doc.get('data', {})
-        # gather observed keys
+        # collect key frequencies
         if isinstance(nested, dict):
             key_counter.update(k.lower() for k in nested.keys())
 
+        # detect format
         fmt = detect_format_from_data(nested)
         format_counter[fmt] += 1
 
-        # save sample preview (keep small)
+        # save sample preview
         if len(samples_by_format[fmt]) < 5:
             samples_by_format[fmt].append(data_preview(nested))
 
-        # Optionally save/copy to new collection(s)
+        # if asked to save, copy into target collection safely
         if save:
-            # decide destination collection
-            dest = None
-            if fmt == 'A':
-                dest = OUT_A
-            elif fmt == 'B':
-                dest = OUT_B
-            elif fmt == 'C':
-                dest = OUT_C
-            elif fmt == 'D':
-                dest = OUT_D
-            elif fmt == 'E':
-                dest = OUT_E
-            else:
-                dest = OUT_UNKNOWN
+            dest_coll = targets.get(fmt, targets['unknown'])
 
-            # Prepare doc copy to insert: keep top-level metadata, and data, and original _id as source_id
-            # We store original _id in field 'source_id' to keep provenance.
-            copy_doc = {
-                'source_id': str(doc.get('_id')),
-                'metadata': doc.get('metadata'),
-                'data': nested,
-                'ingested_at': doc.get('inserted_at')
-            }
-            try:
-                db[dest].insert_one(copy_doc)
-            except Exception as e:
-                print(f"Warning: failed to insert into {dest}: {e}")
+            # prepare copy without original _id; store original _id in 'source_id'
+            source_id = str(doc.get('_id'))
+            # resume-safety: skip if copy already exists (idempotent)
+            if dest_coll.find_one({'source_id': source_id}) is None:
+                copy_doc = {
+                    'source_id': source_id,
+                    'metadata': doc.get('metadata'),
+                    'data': nested,
+                    'ingested_at': doc.get('inserted_at')
+                }
+                try:
+                    dest_coll.insert_one(copy_doc)
+                except Exception as e:
+                    print(f"Warning: failed to insert into {dest_coll.name}: {e}")
+            # else: already present => skip
+
+        # progress printing
+        if processed % batch_print == 0:
+            print(f"  Processed {processed} documents...")
 
     # Print inspection results
     print(f"\nScanned {processed} documents from '{RAW_COLL}' (sample_limit={sample_limit})")
@@ -226,16 +203,18 @@ def main(save=False, sample_limit=SAMPLE_LIMIT):
     if save:
         print("\nSaved classified copies to collections:")
         print(" ", OUT_A, OUT_B, OUT_C, OUT_D, OUT_E, OUT_UNKNOWN)
-        print("You can inspect counts now (be patient for large SAMPLE_LIMIT):")
-        for name in [OUT_A, OUT_B, OUT_C, OUT_D, OUT_E, OUT_UNKNOWN]:
+        print("Counts now in DB (these may be larger if you re-ran without --fresh):")
+        for coll_name in [OUT_A, OUT_B, OUT_C, OUT_D, OUT_E, OUT_UNKNOWN]:
             try:
-                print(f"  {name}: {db[name].count_documents({})}")
+                print(f"  {coll_name}: {db[coll_name].count_documents({})}")
             except Exception as e:
-                print(f"  {name}: count error: {e}")
+                print(f"  {coll_name}: count error: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inspect and optionally split probando_messages into formatA..E")
     parser.add_argument("--save", action="store_true", help="Save documents into formatA..formatE collections (default: don't save).")
-    parser.add_argument("--limit", type=int, default=SAMPLE_LIMIT, help="How many docs to scan (default %s)." % (SAMPLE_LIMIT))
+    parser.add_argument("--limit", type=lambda s: None if s.lower() == 'none' else int(s), default=DEFAULT_SAMPLE_LIMIT,
+                        help="How many docs to scan (default %s). Use 'None' to scan all." % (DEFAULT_SAMPLE_LIMIT))
+    parser.add_argument("--fresh", action="store_true", help="If set with --save, drop existing target collections first.")
     args = parser.parse_args()
-    main(save=args.save, sample_limit=args.limit)
+    main(save=args.save, sample_limit=args.limit, fresh=args.fresh)
