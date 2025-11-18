@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from pymongo.errors import BulkWriteError
 import os
 
 from src.database.models.sql import Address, Bank, Person, PersonAddress, Work
@@ -313,9 +314,6 @@ def bulk_insert_people_and_addresses(session, people_data, address_data, batch_s
     for i in range(0, len(address_data), batch_size):
         batch = address_data[i:i + batch_size]
         session.bulk_insert_mappings(Address, batch)
-        
-    session.commit()
-    log.info("Step 1 commit successful.")
 
 
 def bulk_insert_dependents(session, cursor_original_data):
@@ -406,33 +404,66 @@ def bulk_insert_dependents(session, cursor_original_data):
     session.bulk_insert_mappings(Bank, bank_data)
     session.bulk_insert_mappings(Work, work_data)
     session.bulk_insert_mappings(PersonAddress, person_address_data)
-    
-    session.commit()
-    log.info("Step 2 commit successful.")
 
 def read_from_mongo_bulk(session):
     """
-    Orchestrates the entire high-performance bulk loading process from MongoDB to PostgreSQL.
+    Reads data from MongoDB in bulk, transforms it, and populates the PostgreSQL database.
 
-    This is the main function for bulk data transfer. It performs the following steps:
-    1. Fetches all relevant records from MongoDB into a list.
-    2. Calls `prepare_data_for_bulk` to transform the data.
-    3. Calls `bulk_insert_people_and_addresses` to insert independent records.
-    4. Calls `bulk_insert_dependents` to insert records with foreign key relationships.
+    This function is designed for high-performance data loading from MongoDB to PostgreSQL.
+    It fetches records from MongoDB that have not yet been uploaded to SQL, prepares the data,
+    inserts it in bulk, and then updates the MongoDB records to mark them as uploaded.
+    Error handling is included to rollback changes in case of failure.
 
     Args:
-        session (sqlalchemy.orm.Session): The database session to use.
-    """
-    mongo, _ = connect_to_mongodb(MONGO_DATABASE, MONGO_COLLECTION)
-    cursor = mongo[MONGO_DATABASE][golden].find({"data_sources": { "$size": 5}})
-    cursor_list = list(cursor)
-    people_data, address_data, records_processed = prepare_data_for_bulk(cursor_list)
-    bulk_insert_people_and_addresses(session, people_data, address_data)
-    bulk_insert_dependents(session, cursor_list)
+        session (sqlalchemy.orm.Session): The database session to use for the transaction.
 
+    Raises:
+        BulkWriteError: If there are issues during the MongoDB bulk write operation.
+        Exception: If any other error occurs during the process, the transaction is rolled back.
+
+    """
+    mongo_client, _ = connect_to_mongodb(MONGO_DATABASE, MONGO_COLLECTION)
+    mongo_collection = mongo_client[MONGO_DATABASE][golden]
+    cursor = mongo_collection.find(
+        {
+            "data_sources": { "$size": 5},
+            "uploaded_2_SQL": {'$ne': True}
+        }
+    )
+    cursor_list = list(cursor)
+    if not cursor_list:
+        log.info("No new records found to process.")
+        return
+    mongo_ids = [doc['_id'] for doc in cursor_list]
+    people_data, address_data, records_processed = prepare_data_for_bulk(cursor_list)
+
+    try:
+        bulk_insert_people_and_addresses(session, people_data, address_data)
+        bulk_insert_dependents(session, cursor_list)
+        session.commit()
+        log.info("Transaction committed successfully.")
+
+        log.info(f"Starting MongoDB status update for {len(mongo_ids)} records.")
+        mongo_collection.update_many(
+            {"_id": {"$in": mongo_ids}},
+            {"$set": {"uploaded_2_SQL": True}}
+        )
+        log.info("MongoDB status update complete.")
+    except BulkWriteError as e:
+        # Handle specific MongoDB bulk write errors (e.g., if there are unique key violations in Mongo itself)
+        log.error(f"MongoDB Bulk Write Failed: {e.details}")
+        # NOTE: A failure here means SQL is committed, but Mongo update failed.
+        # You'll need external monitoring to re-run the Mongo update for these IDs.
+    
+    except Exception as e:
+        session.rollback()
+        log.error(f"Transaction failed. Changes have been rolled back. Error: {e}")
+
+    
     log.info(f"Process finished. Total records processed: {records_processed}")
 
-def drop_temp_columns(session):
+
+def drop_temp_columns(session):     
     """
     Drops the temporary columns from the 'ADDRESS' table used during bulk insertion.
 
