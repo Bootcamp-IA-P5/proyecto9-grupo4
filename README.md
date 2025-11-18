@@ -34,44 +34,46 @@ To get the development environment up and running, follow these steps. For more 
 
 ```
 proyecto9-grupo4/
-├── airflow/                       # Apache Airflow for pipeline orchestration
+├── airflow/                           # Apache Airflow for pipeline orchestration
 │   ├── dags/
 │   │   └── kafka_mongodb_observer.py  # DAG for monitoring Kafka→MongoDB pipeline
-│   ├── README.md                  # Airflow setup and usage guide
-│   └── setup_airflow.sh          # Installation script
+│   ├── README.md                      # Airflow setup and usage guide
+│   └── setup_airflow.sh               # Installation script
 ├── src/
 │   ├── core/
-│   │   ├── kafka_consumer.py      # 1. (tentative) Reads from Kafka and writes to MongoDB (Collection A)
-│   │   ├── data_processor.py      # 2. (tentative) Processing logic: A -> B
-│   │   ├── rel_writer.py          # 3. (tentative) Read from B and write to Relational DB
-│   │   └── logger.py              # Logging configuration and utilities
+│   │   ├── kafka_consumer.py          # 1. (tentative) Reads from Kafka and writes to MongoDB (Collection A)
+│   │   ├── data_processor.py          # 2. (tentative) Processing logic: A -> B
+│   │   ├── rel_writer.py              # 3. (tentative) Read from B and write to Relational DB
+│   │   └── logger.py                  # Logging configuration and utilities
 │   ├── database/
 │   │   ├── models/
-│   │   │   └── sql.py             # SQLAlchemy ORM models
-│   │   ├── sql_alchemy.py         # Functions to connect and write to PostgreSQL
-│   │   └── write_to_mongodb.py    # Functions to connect and write to MongoDB
-│   └── __init__.py                # Makes 'src' a Python package
+│   │   │   └── sql.py                 # SQLAlchemy ORM models
+│   │   ├── sql_alchemy.py             # Functions to connect and write to PostgreSQL
+│   │   ├── write_to_mongodb.py        # Functions to connect and write to MongoDB
+│   │   └── write_to_postgresql.py     # Functions to connect and write to PostgreSQL
+│   └── __init__.py                    # Makes 'src' a Python package
 ├── config/
-│   ├── settings.py                # (tentative) Environment/configuration variables read at startup
-│   └── kafka.ini                  # (tentative) Kafka-specific configuration file (or .env)
+│   ├── settings.py                    # (tentative) Environment/configuration variables read at startup
+│   └── kafka.ini                      # (tentative) Kafka-specific configuration file (or .env)
 ├── tests/
 │   ├── data
-│   │   └── test_data.json         # Fake data to test load from mongo to PostgreSQL 
-│   ├── test_kafka_consumer.py     # (tentative) Tests the Kafka consumer
-│   ├── test_data_processor.py     # (tentative) Tests the data processor
-│   └── test_mongodb_connector.py  # (tentative) Tests the MongoDB connector
+│   │   └── test_data.json             # Fake data to test load from mongo to PostgreSQL 
+│   ├── test_kafka_consumer.py         # (tentative) Tests the Kafka consumer
+│   ├── test_data_processor.py         # (tentative) Tests the data processor
+│   └── test_mongodb_connector.py      # (tentative) Tests the MongoDB connector
 ├── scripts/
-│   ├── read_from_kafka.py         # 1. Reads from Kafka and writes to MongoDB
-│   ├── sql_load_db.py             # Utility to load test data into the SQL database
-│   ├── sql_clean_db.py            # Utility to clean and recreate the SQL database
-│   └── sql_dump_db.py             # Utility to export SQL data to a CSV file
+│   ├── mongo_consolidate.py           # Consolidate data from Kafka to MongoDB (Golden, deprecated)
+│   ├── read_from_kafka.py             # Reads from Kafka and writes to MongoDB
+│   ├── sql_load_db.py                 # Utility to load test data into the SQL database
+│   ├── sql_clean_db.py                # Utility to clean and recreate the SQL database
+│   └── sql_dump_db.py                 # Utility to export SQL data to a CSV file
 ├── .devcontainer/
-│   └── devcontainer.json          # VSCode Dev Container configuration
+│   └── devcontainer.json              # VSCode Dev Container configuration
 ├── .github/
-│   └── ISSUE_TEMPLATE/            # GitHub issue templates
-├── requirements.txt               # List of project dependencies (e.g., kafka-python, pymongo, sqlalchemy)
-├── .env.example                   # Example environment variables file
-└── README.md                      # Project documentation
+│   └── ISSUE_TEMPLATE/                # GitHub issue templates
+├── requirements.txt                   # List of project dependencies (e.g., kafka-python, pymongo, sqlalchemy)
+├── .env.example                       # Example environment variables file
+└── README.md                          # Project documentation
 ```
 
 # Usage
@@ -100,7 +102,7 @@ airflow webserver --port 8080
 
 3. Load data into PostgreSQL
 ```sh
-python -m scripts.sql_load_db [-h|--file FILE]
+python -m scripts.sql_load_db [-h|--file FILE| --bulk]
 ```
 
 4. Clean the PostgreSQL database
