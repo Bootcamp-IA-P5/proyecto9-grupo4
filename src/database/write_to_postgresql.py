@@ -287,6 +287,7 @@ def prepare_data_for_bulk(cursor):
         records_processed += 1
         
     log.info(f"Data preparation complete. Processed {records_processed} records.")
+    log.info(f"Skipped {records_skipped} records due to missing passport.")
     return people_data, address_data, records_processed
 
 
