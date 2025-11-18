@@ -72,7 +72,12 @@ def main(data_file, batch):
                 read_from_mongo_json(session, json_data)
             else:
                 read_from_mongo(session)
-        log.info(f"Successfully loaded data from {data_file} into the database.")
+        if data_file:
+            log.info(f"Successfully loaded data from {data_file} into the database.")
+        elif batch:
+            log.info("Successfully loaded data from MongoDB (bulk mode) into the database.")
+        else:
+            log.info("Successfully loaded data from MongoDB into the database.")
     except SQLAlchemyError as e:
         session.rollback()
         log.error(f"A database error occurred: {e}")
