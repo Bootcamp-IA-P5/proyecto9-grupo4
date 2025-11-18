@@ -37,31 +37,31 @@ proyecto9-grupo4/
 ├── airflow/                           # Apache Airflow for pipeline orchestration
 │   ├── dags/
 │   │   └── kafka_mongodb_observer.py  # DAG for monitoring Kafka→MongoDB pipeline
-│   ├── README.md                      # Airflow setup and usage guide
-│   └── setup_airflow.sh               # Installation script
+│   └── README.md                      # Airflow setup and usage guide
 ├── src/
 │   ├── core/
-│   │   ├── kafka_consumer.py          # 1. (tentative) Reads from Kafka and writes to MongoDB (Collection A)
-│   │   ├── data_processor.py          # 2. (tentative) Processing logic: A -> B
-│   │   ├── rel_writer.py              # 3. (tentative) Read from B and write to Relational DB
+│   │   ├── __init__.py                # Makes 'src/core' a Python package
 │   │   └── logger.py                  # Logging configuration and utilities
 │   ├── database/
 │   │   ├── models/
+|   |   |   ├── __init__.py            # Makes 'src/database/models' a Python package
 │   │   │   └── sql.py                 # SQLAlchemy ORM models
-│   │   ├── sql_alchemy.py             # Functions to connect and write to PostgreSQL
+│   │   ├── __init__.py                # Makes 'src/database' a Python package
+│   │   ├── check_mongodb.py           # Check MongoDB Atlas for stored Kafka messages
+│   │   ├── supabase_api.py            # Conect with Supabase
 │   │   ├── write_to_mongodb.py        # Functions to connect and write to MongoDB
 │   │   └── write_to_postgresql.py     # Functions to connect and write to PostgreSQL
 │   └── __init__.py                    # Makes 'src' a Python package
 ├── config/
-│   ├── settings.py                    # (tentative) Environment/configuration variables read at startup
-│   └── kafka.ini                      # (tentative) Kafka-specific configuration file (or .env)
+|   ├── __init__.py                    # Makes 'config' a Python package
+│   └── settings.py                    # Environment/configuration variables read at startup
 ├── tests/
 │   ├── data
+|   |   ├── __init__.py                # Makes 'tests/data' a Python package
 │   │   └── test_data.json             # Fake data to test load from mongo to PostgreSQL 
-│   ├── test_kafka_consumer.py         # (tentative) Tests the Kafka consumer
-│   ├── test_data_processor.py         # (tentative) Tests the data processor
-│   └── test_mongodb_connector.py      # (tentative) Tests the MongoDB connector
+│   └── __init__.py                    # Makes 'tests' a Python package
 ├── scripts/
+|   ├── __init__.py                    # Makes 'scripts' a Python package
 │   ├── mongo_consolidate.py           # Consolidate data from Kafka to MongoDB (Golden, deprecated)
 │   ├── read_from_kafka.py             # Reads from Kafka and writes to MongoDB
 │   ├── sql_load_db.py                 # Utility to load test data into the SQL database
@@ -73,6 +73,11 @@ proyecto9-grupo4/
 │   └── ISSUE_TEMPLATE/                # GitHub issue templates
 ├── requirements.txt                   # List of project dependencies (e.g., kafka-python, pymongo, sqlalchemy)
 ├── .env.example                       # Example environment variables file
+├── .env                               # Real eniroment variables file
+├── CONTRIBUTING.md
+├── .gitignore
+├── docker-compose-airflow.yml
+├── start-airflow.sh
 └── README.md                          # Project documentation
 ```
 
