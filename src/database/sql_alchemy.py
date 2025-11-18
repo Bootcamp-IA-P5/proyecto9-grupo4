@@ -153,12 +153,24 @@ def read_from_mongo_collection(session, mongo_collection):
     records_processed = 0
     records_skipped = 0
     records_with_errors = 0
+    records_incomplete = 0  # Track records without all 5 schemas
+    successfully_processed_passports = []  # Track passports for MongoDB update
+    
+    # Define the 5 required schema types for complete records
+    REQUIRED_SCHEMAS = {'personal', 'bank', 'location', 'professional', 'network'}
+    
+    # Query filter: only records with all 5 schemas AND not yet uploaded
+    # Note: $ne will match both False and missing field (null)
+    query_filter = {
+        'uploaded_2_SQL': {'$ne': True},  # Match False or missing field
+        'data_sources': {'$all': list(REQUIRED_SCHEMAS)}  # Must contain all 5 schema types
+    }
     
     # Get total count for progress tracking
-    total_records = mongo_collection.count_documents({})
-    log.info(f"Found {total_records} golden records to process")
+    total_records = mongo_collection.count_documents(query_filter)
+    log.info(f"Found {total_records} complete golden records to process (with all 5 schemas, not yet uploaded)")
     
-    for idx, record in enumerate(mongo_collection.find(), 1):
+    for idx, record in enumerate(mongo_collection.find(query_filter), 1):
         if idx % 100 == 0:
             log.info(f"Progress: {idx}/{total_records} records processed")
         
@@ -198,11 +210,15 @@ def read_from_mongo_collection(session, mongo_collection):
                 records_with_errors += 1
                 continue
             
+            # Calculate full_name by combining name and last_name
+            full_name = f"{name} {last_name}"
+            
             # Create Person object
             person = Person(
                 passport=passport,
                 name=name,
                 last_name=last_name,
+                full_name=full_name,
                 sex=sex,
                 email=record.get("email"),
                 phone=record.get("telfnumber")
@@ -273,6 +289,8 @@ def read_from_mongo_collection(session, mongo_collection):
                     person.address_associations.append(work_association)
                     session.add_all([work_address, work_association])
 
+            # Mark as successfully processed (will be committed if transaction succeeds)
+            successfully_processed_passports.append(passport)
             records_processed += 1
             
         except Exception as e:
@@ -286,9 +304,21 @@ def read_from_mongo_collection(session, mongo_collection):
     try:
         session.commit()
         log.info("Transaction committed successfully.")
+        
+        # After successful commit, update MongoDB to mark records as uploaded
+        if successfully_processed_passports:
+            log.info(f"Updating {len(successfully_processed_passports)} MongoDB golden records to mark as uploaded...")
+            
+            # Bulk update MongoDB records to set uploaded_2_SQL = True
+            from pymongo import UpdateMany
+            update_result = mongo_collection.update_many(
+                {'_id': {'$in': successfully_processed_passports}},
+                {'$set': {'uploaded_2_SQL': True}}
+            )
+            log.info(f"✓ Marked {update_result.modified_count} golden records as uploaded in MongoDB")
+        
         log.info(f"Summary: {records_processed} new records inserted, {records_skipped} duplicate records skipped, {records_with_errors} records with errors.")
     except Exception as e:
         session.rollback()
         log.error(f"Error committing transaction: {e}")
         raise
-    

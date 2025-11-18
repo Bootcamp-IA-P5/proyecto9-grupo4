@@ -28,6 +28,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from collections import defaultdict
 from dotenv import load_dotenv
+from pymongo.collection import Collection
 
 # Ensure project root is on sys.path
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -94,11 +95,15 @@ def detect_schema_type(data: dict) -> str:
 
 
 def normalize_fullname(fullname: str) -> str:
-    """Normalize fullname for matching (lowercase, strip whitespace)"""
+    """removes any leading or trailing whitespace characters (spaces, tabs, newlines) from the fullname. Then, converts all characters to lowercase"""
     return fullname.strip().lower() if fullname else ""
 
 
-def consolidate_records(raw_collection, golden_collection, dry_run: bool = False) -> dict:
+def consolidate_records(
+    raw_collection: Collection, 
+    golden_collection: Collection, 
+    dry_run: bool = False
+) -> dict:
     """
     Main consolidation logic: groups records by individual and merges schemas.
     
@@ -125,10 +130,10 @@ def consolidate_records(raw_collection, golden_collection, dry_run: bool = False
         'unknown_records': 0,
         'golden_records_created': 0,
         'golden_records_updated': 0,
-        'unmatched_records': 0,
+        'unmatched_records': 0, #there was a bank_by_passport register without its personal record
     }
     
-    # Data structures to hold categorized records
+    # Data structures to hold raw categorized records
     personal_by_passport: Dict[str, dict] = {}
     bank_by_passport: Dict[str, dict] = {}
     location_by_fullname: Dict[str, dict] = {}
@@ -177,18 +182,24 @@ def consolidate_records(raw_collection, golden_collection, dry_run: bool = False
             if fullname:
                 location_by_fullname[normalize_fullname(fullname)] = data
                 stats['location_records'] += 1
+            else:
+                log.warning(f"Location record missing fullname: {data}")
                 
         elif schema_type == SchemaType.PROFESSIONAL:
             fullname = data.get('fullname')
             if fullname:
                 professional_by_fullname[normalize_fullname(fullname)] = data
                 stats['professional_records'] += 1
+            else:
+                log.warning(f"Professional record missing fullname: {data}")
                 
         elif schema_type == SchemaType.NETWORK:
             address = data.get('address')
             if address:
                 network_by_address[normalize_fullname(address)] = data
                 stats['network_records'] += 1
+            else:
+                log.warning(f"Network record missing address: {data}")
         else:
             stats['unknown_records'] += 1
     
@@ -218,6 +229,7 @@ def consolidate_records(raw_collection, golden_collection, dry_run: bool = False
             '_id': passport,  # Use passport as unique identifier (primary key)
             'consolidated_at': datetime.now().isoformat(),
             'data_sources': [],  # Track which schemas contributed
+            'uploaded_2_SQL': False,  # Tracks if uploaded to Supabase
             # Personal data fields
             'name': None,
             'last_name': None,
@@ -292,18 +304,19 @@ def consolidate_records(raw_collection, golden_collection, dry_run: bool = False
             golden_record['data_sources'].append('professional')
         
         # Check data completeness
-        # Note: _id field already contains the passport, so we only check name and last_name
+        # Note: _id field already contains the passport, so we only check name and last_name (which came from a personal record)
         required_fields = ['name', 'last_name']
         if all(golden_record.get(field) for field in required_fields):
             
             if not dry_run:
-                # Add to bulk operations instead of individual writes
+                # Add to list bulk operations rather than immediately writing each golden record to the database one at a time,
+                # this approach accumulates multiple write operations into bulk operations list for later batch execution, which dramatically improves performance when dealing with large datasets.
                 bulk_operations.append(
                     UpdateOne(
-                        {'_id': passport},
-                        {'$set': golden_record},
-                        upsert=True
-                    )
+                        {'_id': passport}, #identifies which document to update by matching on the _id field (MongoDB's primary key)
+                        {'$set': golden_record}, #replaces or adds all the fields present in the golden_record dictionary. If the document already exists, $set will update existing fields
+                        upsert=True # MongoDB will create a new document if no document matches the filter criteria. This means if a person with a particular passport number doesn't have a corresponding document, a new one will be created
+                    )               # golden record yet, one will be created; if they already have a golden record, it will be updated with the new consolidated data. This single operation handles both creating new records and updating existing ones, eliminating the need for separate existence checks and conditional logic.
                 )
                 
                 # Execute batch when it reaches batch_size
@@ -323,7 +336,8 @@ def consolidate_records(raw_collection, golden_collection, dry_run: bool = False
                 log.debug(f"  Data sources: {golden_record['data_sources']}")
                 stats['golden_records_created'] += 1
         else:
-            log.warning(f"Incomplete golden record for passport {passport}: missing required fields")
+            # Identify which specific fields are missing
+            log.warning(f"Incomplete golden record for passport {passport}: missing {required_fields}") #there was a bank_by_passport register without its personal record
             stats['unmatched_records'] += 1
     
     # Execute remaining bulk operations (final batch)

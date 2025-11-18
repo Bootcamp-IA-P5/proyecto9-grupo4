@@ -15,6 +15,7 @@ class Person(Base):
     passport = Column(String(255), nullable=False)                  # Passport number of the person
     name = Column(String(255), nullable=False)                      # First name of the person
     last_name = Column(String(255), nullable=False)                 # Last name of the person
+    full_name = Column(String(511), nullable=False)                 # Full name (name + last_name)
     sex = Column(String(255), nullable=False)                       # Sex of the person
     email = Column(String(255), nullable=False)                     # Email address of the person
     phone = Column(String(255), nullable=False)                     # Phone number of the person
