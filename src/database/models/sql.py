@@ -15,6 +15,7 @@ class Person(Base):
     passport = Column(String(255), nullable=False)                  # Passport number of the person
     name = Column(String(255), nullable=False)                      # First name of the person
     last_name = Column(String(255), nullable=False)                 # Last name of the person
+    full_name = Column(String(255), nullable=False)                 # Full name of the person
     sex = Column(String(255), nullable=False)                       # Sex of the person
     email = Column(String(255), nullable=False)                     # Email address of the person
     phone = Column(String(255), nullable=False)                     # Phone number of the person
@@ -48,6 +49,12 @@ class Address(Base):
     street_name = Column(String(255), nullable=False)               # Street name of the address
     city = Column(String(255), nullable=False)                      # City of the address
     ip_address = Column(String(255), nullable=False)                # Associated IP address
+
+    # --- TEMPORARY COLUMNS FOR BULK INSERT MAPPING ---
+    # These fields must be added so SQLAlchemy can map them in Step 1 
+    # and query them in Step 2. They can be removed after the migration.
+    temp_passport = Column(String(50), nullable=True)
+    temp_type = Column(String(10), nullable=True)
 
     # --- Relationships ---
 
