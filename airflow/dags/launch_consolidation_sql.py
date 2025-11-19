@@ -37,13 +37,13 @@ default_args = {
 }
 
 dag = DAG(
-    dag_id='complete_etl_pipeline',
+    dag_id='launch_consolidation_sql',
     default_args=default_args,
-    description='Complete ETL: Kafka → MongoDB (raw) → MongoDB (golden) → Supabase',
+    description='ETL: MongoDB (raw) → MongoDB (golden) → Supabase',
     schedule='0/3 * * * *',  # Every hour at minute 0
     start_date=datetime(2025, 11, 16),
     catchup=False,
-    tags=['etl', 'kafka', 'mongodb', 'supabase', 'production'],
+    tags=['etl', 'mongodb', 'supabase', 'production'],
 )
 
 
