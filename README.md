@@ -100,17 +100,36 @@ airflow webserver --port 8080
 # Access UI: http://localhost:8080 (admin/admin)
 ```
 
-3. Load data into PostgreSQL
+3. **Consolidate MongoDB data (Bronze → Silver → Golden)**
+```sh
+python -m scripts.mongo_consolidate
+
+# Or run in dry-run mode (no writes or deletions)
+python -m scripts.mongo_consolidate --dry-run
+```
+
+This script:
+- Reads raw Kafka messages from the `probando_messages` collection
+- Consolidates duplicate records by matching passport, fullname, and address
+- Creates golden records in the `golden_records` collection
+- **Automatically deletes consolidated raw records** to save storage space
+
+4. **Check MongoDB collection status**
+```sh
+python test_consolidation.py
+```
+
+5. Load data into PostgreSQL
 ```sh
 python -m scripts.sql_load_db [-h|--file FILE| --bulk]
 ```
 
-4. Clean the PostgreSQL database
+6. Clean the PostgreSQL database
 ```sh
 python -m scripts.sql_clean_db [-h|-f|--force]
 ```
 
-5. Dump PostgreSQL database into a csv file
+7. Dump PostgreSQL database into a csv file
 ```sh
 python -m scripts.dump_db [-h|[-o|--output] OUTPUT]
 ```

@@ -131,6 +131,7 @@ def consolidate_records(
         'golden_records_created': 0,
         'golden_records_updated': 0,
         'unmatched_records': 0, #there was a bank_by_passport register without its personal record
+        'raw_records_deleted': 0,
     }
     
     # Data structures to hold raw categorized records
@@ -139,6 +140,9 @@ def consolidate_records(
     location_by_fullname: Dict[str, dict] = {}
     professional_by_fullname: Dict[str, dict] = {}
     network_by_address: Dict[str, dict] = {}
+    
+    # Track MongoDB _id values of raw records to delete after consolidation
+    raw_ids_to_delete: List[str] = []
     
     # Also track fullname -> passport mapping for linking
     fullname_to_passport: Dict[str, str] = {}
@@ -149,11 +153,17 @@ def consolidate_records(
     for doc in raw_collection.find():
         stats['total_raw_messages'] += 1
         
+        # Store the MongoDB _id for later deletion
+        doc_id = doc.get('_id')
+        
         # Extract the actual data from the Kafka message wrapper
         data = doc.get('data', {})
         
         if not data:
             stats['empty_data_count'] = stats.get('empty_data_count', 0) + 1
+            # Track empty records for deletion too
+            if doc_id:
+                raw_ids_to_delete.append(doc_id)
             continue
         
         schema_type = detect_schema_type(data)
@@ -166,6 +176,9 @@ def consolidate_records(
                 fullname = f"{data.get('name', '')} {data.get('last_name', '')}"
                 fullname_to_passport[normalize_fullname(fullname)] = passport
                 stats['personal_records'] += 1
+                # Track for deletion
+                if doc_id:
+                    raw_ids_to_delete.append(doc_id)
             else:
                 log.warning(f"Personal record missing passport: {data}")
                 
@@ -174,6 +187,9 @@ def consolidate_records(
             if passport:
                 bank_by_passport[passport] = data
                 stats['bank_records'] += 1
+                # Track for deletion
+                if doc_id:
+                    raw_ids_to_delete.append(doc_id)
             else:
                 log.warning(f"Bank record missing passport: {data}")
                 
@@ -182,6 +198,9 @@ def consolidate_records(
             if fullname:
                 location_by_fullname[normalize_fullname(fullname)] = data
                 stats['location_records'] += 1
+                # Track for deletion
+                if doc_id:
+                    raw_ids_to_delete.append(doc_id)
             else:
                 log.warning(f"Location record missing fullname: {data}")
                 
@@ -190,6 +209,9 @@ def consolidate_records(
             if fullname:
                 professional_by_fullname[normalize_fullname(fullname)] = data
                 stats['professional_records'] += 1
+                # Track for deletion
+                if doc_id:
+                    raw_ids_to_delete.append(doc_id)
             else:
                 log.warning(f"Professional record missing fullname: {data}")
                 
@@ -198,6 +220,9 @@ def consolidate_records(
             if address:
                 network_by_address[normalize_fullname(address)] = data
                 stats['network_records'] += 1
+                # Track for deletion
+                if doc_id:
+                    raw_ids_to_delete.append(doc_id)
             else:
                 log.warning(f"Network record missing address: {data}")
         else:
@@ -351,12 +376,38 @@ def consolidate_records(
         except Exception as e:
             log.error(f"Final batch write failed: {e}")
     
+    # PHASE 3: Delete consolidated raw records
+    if not dry_run and raw_ids_to_delete:
+        log.info("\n🗑️  PHASE 3: Deleting consolidated raw records...")
+        log.info(f"  - Records marked for deletion: {len(raw_ids_to_delete)}")
+        
+        try:
+            # Delete in batches to avoid memory issues with large datasets
+            delete_batch_size = 1000
+            total_deleted = 0
+            
+            for i in range(0, len(raw_ids_to_delete), delete_batch_size):
+                batch_ids = raw_ids_to_delete[i:i + delete_batch_size]
+                result = raw_collection.delete_many({'_id': {'$in': batch_ids}})
+                total_deleted += result.deleted_count
+                log.info(f"  ✓ Deleted batch: {result.deleted_count} records (Total: {total_deleted}/{len(raw_ids_to_delete)})")
+            
+            stats['raw_records_deleted'] = total_deleted
+            log.info(f"✅ Successfully deleted {total_deleted} consolidated raw records")
+            
+        except Exception as e:
+            log.error(f"❌ Error deleting raw records: {e}")
+            log.warning("Golden records were created, but raw records were not deleted")
+    elif dry_run:
+        log.info(f"\n[DRY RUN] Would delete {len(raw_ids_to_delete)} consolidated raw records")
+    
     log.info("\n✅ CONSOLIDATION COMPLETE")
     log.info(f"  - Total raw messages: {stats['total_raw_messages']}")
     log.info(f"  - Empty data records (skipped): {stats.get('empty_data_count', 0)}")
     log.info(f"  - Golden records created: {stats['golden_records_created']}")
     log.info(f"  - Golden records updated: {stats['golden_records_updated']}")
     log.info(f"  - Incomplete/unmatched records: {stats['unmatched_records']}")
+    log.info(f"  - Raw records deleted: {stats['raw_records_deleted']}")
     
     return stats
 
