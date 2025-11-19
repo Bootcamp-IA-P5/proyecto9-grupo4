@@ -364,7 +364,7 @@ After a successful run, you can query the results:
 ```python
 from pymongo import MongoClient
 client = MongoClient(MONGO_ATLAS_URI)
-golden_count = client['kafka_data']['golden'].count_documents({})
+golden_count = client['kafka_data']['golden_records'].count_documents({})
 print(f"Golden records: {golden_count}")
 ```
 
