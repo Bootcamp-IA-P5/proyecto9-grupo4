@@ -37,7 +37,7 @@ def check_collections():
         log.info(f"  - Golden Collection ({GOLDEN_COLLECTION}): {golden_count} records")
         
         if raw_count > 0:
-            log.info(f"\n💡 Tip: Run 'python scripts/mongo_consolidate.py' to consolidate and clean up")
+            log.info(f"\n💡 Tip: Run 'python -m scripts.mongo_consolidate' to consolidate and clean up")
         else:
             log.info(f"\n✅ Raw collection is empty - all records have been consolidated!")
         
