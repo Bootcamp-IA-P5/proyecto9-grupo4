@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# --- Function to display help ---
+show_help() {
+    echo "Usage: $0 [direction] [optional_message]"
+    echo ""
+    echo "Checks the specified direction."
+    echo ""
+    echo "Parameters:"
+    echo "  up      (Default) Executes the 'Up' path."
+    echo "  down    Executes the 'Down' path."
+    echo "  passwd  Gets airflow web server admin password."
+    echo ""
+}
+
+# --- 1. Set Default Value ---
+# ${1:-up} means: Use the value of $1. If $1 is null or unset, use 'up'.
+DIRECTION="${1:-up}"
+
+# The optional second message, if provided
+MESSAGE="${2}"
+
+# --- 2. Check for Help and Exit ---
+if [[ "$DIRECTION" == "-h" || "$DIRECTION" == "--help" ]]; then
+    show_help
+    exit 0
+fi
+
+KAFKA="./data-engineering-educational-project/docker-compose.yml"
+KAFKA_NETWORK="data-engineering-educational-project_default"
+AIRFLOW="./proyecto9-grupo4/docker-compose-airflow.yml"
+AIRFLOW_NETWORK="airflow-webserver"
+
+# --- 3. Main Logic using case statement ---
+case "$DIRECTION" in
+    up)
+        echo "⬆️   Executing the UP path."
+        echo "Status: Running migrations or starting services."
+        docker compose -f $KAFKA up -d
+        docker compose -f $AIRFLOW up -d
+        docker network connect $KAFKA_NETWORK $AIRFLOW_NETWORK
+        ;;
+    down)
+        echo "⬇️   Executing the DOWN path."
+        echo "Status: Rolling back changes or stopping services."
+        docker compose -f $AIRFLOW down
+        docker compose -f $KAFKA down
+        ;;
+    passwd)
+        echo "Getting the password..."
+        docker exec airflow-webserver /bin/bash -c 'cat /opt/airflow/simple_auth_manager_passwords.json.generated'
+        ;;
+    *)
+        # Default handler for any other input (e.g., 'status', 'restart')
+        echo "⚠️   Unknown direction: '$DIRECTION'. Valid options are 'up' or 'down'."
+        exit 1
+        ;;
+esac
+
+exit 0
