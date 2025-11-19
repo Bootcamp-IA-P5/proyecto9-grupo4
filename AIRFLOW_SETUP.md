@@ -72,7 +72,7 @@ AIRFLOW_POSTGRES_DB=airflow
 
 # Airflow Admin Credentials (persisted in Docker volume)
 AIRFLOW_ADMIN_USERNAME=admin
-AIRFLOW_ADMIN_PASSWORD=5eEy4GrQ6wa5zakR  # Change this in production!
+AIRFLOW_ADMIN_PASSWORD=<your_secure_password>  # Change this to a strong password!
 AIRFLOW_POSTGRES_DB=airflow
 AIRFLOW_ADMIN_USERNAME=admin
 AIRFLOW_ADMIN_PASSWORD=your_secure_password
