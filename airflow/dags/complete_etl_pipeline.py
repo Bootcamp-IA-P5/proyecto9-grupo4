@@ -116,7 +116,7 @@ dag = DAG(
 #     try:
 #         db = client['kafka_data']
 #         raw_collection = db['probando_messages']
-#         golden_collection = db['golden']
+#         golden_collection = db['golden_records']
         
 #         raw_count = raw_collection.count_documents({})
 #         golden_count = golden_collection.count_documents({})

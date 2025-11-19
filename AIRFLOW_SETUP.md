@@ -139,9 +139,9 @@ Navigate to: **http://localhost:8080**
 
 Use the credentials from your `.env` file:
 - **Username**: `admin`
-- **Password**: Value from `AIRFLOW_ADMIN_PASSWORD` in `.env`
+- **Password**: Value from `AIRFLOW_ADMIN_PASSWORD` in `.env` (e.g., `<YOUR_PASSWORD>`)
 
-> **Note:** The password is stored in the `airflow-data` Docker volume at `/opt/airflow/simple_auth_manager_passwords.json.generated` and persists across container restarts. Change the default password in production!
+> **Note:** The password is stored in the `airflow-data` Docker volume at `/opt/airflow/simple_auth_manager_passwords.json.generated` and persists across container restarts. **Set a strong, unique password in your `.env` file and never use weak or default credentials in production!**
 
 ### 3. Locate the DAG
 
@@ -364,7 +364,7 @@ After a successful run, you can query the results:
 ```python
 from pymongo import MongoClient
 client = MongoClient(MONGO_ATLAS_URI)
-golden_count = client['kafka_data']['golden'].count_documents({})
+golden_count = client['kafka_data']['golden_records'].count_documents({})
 print(f"Golden records: {golden_count}")
 ```
 
