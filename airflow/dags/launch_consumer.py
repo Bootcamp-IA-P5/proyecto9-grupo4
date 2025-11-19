@@ -16,7 +16,6 @@ with DAG(
     schedule=None,
     start_date=datetime(2025, 11, 16),
     catchup=False,
-    dagrun_timeout=timedelta(minutes=10),
     tags=["service", "bash"],
 ) as dag:
     launch_indefinite_python_script = BashOperator(
