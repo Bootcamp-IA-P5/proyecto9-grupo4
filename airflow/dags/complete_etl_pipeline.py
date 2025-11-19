@@ -162,7 +162,7 @@ def run_consolidation(**context):
     """
     # Import here to avoid issues with Airflow imports
     sys.path.insert(0, PROJECT_ROOT)
-    from scripts.mongo_consolidate import mongo_consolidate
+    from scripts.mongo_consolidate import main as mongo_consolidate
     
     logging.info("🔄 Running record consolidation...")
     
