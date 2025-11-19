@@ -19,7 +19,7 @@ docker network connect data-engineering-educational-project_default airflow-webs
 
 # 3. Access Airflow UI
 # Open: http://localhost:8080
-# Login: admin / 5eEy4GrQ6wa5zakR (from .env file)
+# Login: admin / <AIRFLOW_ADMIN_PASSWORD> (from .env file)
 ```
 
 ## Pipeline Overview
@@ -54,7 +54,7 @@ docker network connect data-engineering-educational-project_default airflow-webs
 ```bash
 curl -X POST "http://localhost:8080/api/v1/dags/complete_etl_pipeline/dagRuns" \
   -H "Content-Type: application/json" \
-  -u "admin:5eEy4GrQ6wa5zakR" \
+  -u "admin:<AIRFLOW_ADMIN_PASSWORD>" \
   -d '{"conf":{}}'
 ```
 
@@ -94,7 +94,7 @@ docker-compose -f docker-compose-airflow.yml down -v
 
 ## Important Notes
 
-🔐 **Password Persistence**: The admin password (`5eEy4GrQ6wa5zakR`) is stored in the `airflow-data` Docker volume and persists across container restarts. It will only be regenerated if you delete the volume.
+🔐 **Password Persistence**: The admin password (from `AIRFLOW_ADMIN_PASSWORD` in `.env`) is stored in the `airflow-data` Docker volume and persists across container restarts. It will only be regenerated if you delete the volume.
 
 🌐 **Network Connection**: The `docker network connect` command must be run after EVERY `docker-compose up` because network connections don't persist across container recreations.
 
