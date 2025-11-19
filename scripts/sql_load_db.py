@@ -38,7 +38,7 @@ def load_json_data(file_path):
         log.error(f"Could not decode JSON from {file_path}. Check file format.")
     return None
 
-def main(data_file, batch):
+def main(data_file=None, batch=True):
     """
     Orchestrates the data loading process into the PostgreSQL database.
 

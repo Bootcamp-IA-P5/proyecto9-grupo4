@@ -40,7 +40,7 @@ dag = DAG(
     dag_id='complete_etl_pipeline',
     default_args=default_args,
     description='Complete ETL: Kafka → MongoDB (raw) → MongoDB (golden) → Supabase',
-    schedule='0 * * * *',  # Every hour at minute 0
+    schedule='0/3 * * * *',  # Every hour at minute 0
     start_date=datetime(2025, 11, 16),
     catchup=False,
     tags=['etl', 'kafka', 'mongodb', 'supabase', 'production'],
@@ -50,107 +50,107 @@ dag = DAG(
 # ============================================================================
 # TASK 1: Start Kafka Consumer
 # ============================================================================
-def start_kafka_consumer(**context):
-    """
-    Start the Kafka consumer for a limited time to consume messages.
-    Runs for 30 seconds to allow messages to be consumed into MongoDB.
-    """
-    import subprocess
-    import time
+# def start_kafka_consumer(**context):
+#     """
+#     Start the Kafka consumer for a limited time to consume messages.
+#     Runs for 30 seconds to allow messages to be consumed into MongoDB.
+#     """
+#     import subprocess
+#     import time
     
-    logging.info("🚀 Starting Kafka consumer...")
+#     logging.info("🚀 Starting Kafka consumer...")
     
-    consumer_script = os.path.join(PROJECT_ROOT, 'scripts', 'read_from_kafka.py')
+#     consumer_script = os.path.join(PROJECT_ROOT, 'scripts', 'read_from_kafka.py')
     
-    try:
-        # Start consumer as subprocess with timeout
-        process = subprocess.Popen(
-            ['python', consumer_script],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+#     try:
+#         # Start consumer as subprocess with timeout
+#         process = subprocess.Popen(
+#             ['python', consumer_script],
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.PIPE,
+#             text=True
+#         )
         
-        logging.info("⏱ Running consumer for 30 seconds...")
+#         logging.info("⏱ Running consumer for 30 seconds...")
         
-        # Let it run for 30 seconds
-        time.sleep(30)
+#         # Let it run for 30 seconds
+#         time.sleep(30)
         
-        # Terminate the consumer
-        process.terminate()
+#         # Terminate the consumer
+#         process.terminate()
         
-        try:
-            # Wait for graceful shutdown (max 5 seconds)
-            stdout, stderr = process.communicate(timeout=5)
-            logging.info(f"Consumer output: {stdout}")
-            if stderr:
-                logging.warning(f"Consumer stderr: {stderr}")
-        except subprocess.TimeoutExpired:
-            # Force kill if it doesn't terminate gracefully
-            process.kill()
-            stdout, stderr = process.communicate()
+#         try:
+#             # Wait for graceful shutdown (max 5 seconds)
+#             stdout, stderr = process.communicate(timeout=5)
+#             logging.info(f"Consumer output: {stdout}")
+#             if stderr:
+#                 logging.warning(f"Consumer stderr: {stderr}")
+#         except subprocess.TimeoutExpired:
+#             # Force kill if it doesn't terminate gracefully
+#             process.kill()
+#             stdout, stderr = process.communicate()
             
-        logging.info("✓ Kafka consumer stopped")
-        return {'status': 'success', 'duration_seconds': 30}
+#         logging.info("✓ Kafka consumer stopped")
+#         return {'status': 'success', 'duration_seconds': 30}
         
-    except Exception as e:
-        logging.error(f"❌ Error running Kafka consumer: {e}")
-        raise
+#     except Exception as e:
+#         logging.error(f"❌ Error running Kafka consumer: {e}")
+#         raise
 
 
 # ============================================================================
 # TASK 2: Check for New Raw Data
 # ============================================================================
-def check_for_new_data(**context):
-    """
-    Check if there are new raw Kafka messages in MongoDB that need processing.
-    Compares counts between raw and golden collections.
-    """
-    from pymongo import MongoClient
+# def check_for_new_data(**context):
+#     """
+#     Check if there are new raw Kafka messages in MongoDB that need processing.
+#     Compares counts between raw and golden collections.
+#     """
+#     from pymongo import MongoClient
     
-    logging.info("🔍 Checking for new raw data...")
+#     logging.info("🔍 Checking for new raw data...")
     
-    mongo_uri = os.getenv('MONGO_ATLAS_URI')
-    client = MongoClient(mongo_uri)
+#     mongo_uri = os.getenv('MONGO_ATLAS_URI')
+#     client = MongoClient(mongo_uri)
     
-    try:
-        db = client['kafka_data']
-        raw_collection = db['probando_messages']
-        golden_collection = db['golden']
+#     try:
+#         db = client['kafka_data']
+#         raw_collection = db['probando_messages']
+#         golden_collection = db['golden']
         
-        raw_count = raw_collection.count_documents({})
-        golden_count = golden_collection.count_documents({})
+#         raw_count = raw_collection.count_documents({})
+#         golden_count = golden_collection.count_documents({})
         
-        logging.info(f"📊 Raw messages: {raw_count}")
-        logging.info(f"📊 Golden records: {golden_count}")
+#         logging.info(f"📊 Raw messages: {raw_count}")
+#         logging.info(f"📊 Golden records: {golden_count}")
         
-        # Check if we have new data to process
-        if raw_count == 0:
-            logging.warning("⚠ No raw messages found. Kafka consumer may not be running.")
-            return {
-                'has_new_data': False,
-                'raw_count': 0,
-                'golden_count': 0,
-                'message': 'No raw data'
-            }
+#         # Check if we have new data to process
+#         if raw_count == 0:
+#             logging.warning("⚠ No raw messages found. Kafka consumer may not be running.")
+#             return {
+#                 'has_new_data': False,
+#                 'raw_count': 0,
+#                 'golden_count': 0,
+#                 'message': 'No raw data'
+#             }
         
-        # Always process if there's raw data (consolidation is idempotent)
-        result = {
-            'has_new_data': True,
-            'raw_count': raw_count,
-            'golden_count': golden_count,
-            'estimated_new': raw_count  # We'll let consolidation handle deduplication
-        }
+#         # Always process if there's raw data (consolidation is idempotent)
+#         result = {
+#             'has_new_data': True,
+#             'raw_count': raw_count,
+#             'golden_count': golden_count,
+#             'estimated_new': raw_count  # We'll let consolidation handle deduplication
+#         }
         
-        logging.info(f"✓ Found {raw_count} raw messages to process")
+#         logging.info(f"✓ Found {raw_count} raw messages to process")
         
-        # Push to XCom for next tasks
-        context['task_instance'].xcom_push(key='data_check', value=result)
+#         # Push to XCom for next tasks
+#         context['task_instance'].xcom_push(key='data_check', value=result)
         
-        return result
+#         return result
         
-    finally:
-        client.close()
+#     finally:
+#         client.close()
 
 
 # ============================================================================
@@ -190,7 +190,7 @@ def load_to_supabase(**context):
     
     try:
         # Run ETL (script raises on failure)
-        load_main(data_file=None, batch=False)
+        load_main(data_file=None, batch=True)
         logging.info("✓ Data loaded to Supabase successfully")
         return {'status': 'success'}
             
@@ -203,17 +203,17 @@ def load_to_supabase(**context):
 # Define Task Dependencies
 # ============================================================================
 
-task_start_consumer = PythonOperator(
-    task_id='start_kafka_consumer',
-    python_callable=start_kafka_consumer,
-    dag=dag,
-)
+# task_start_consumer = PythonOperator(
+#     task_id='start_kafka_consumer',
+#     python_callable=start_kafka_consumer,
+#     dag=dag,
+# )
 
-task_check_data = PythonOperator(
-    task_id='check_for_new_data',
-    python_callable=check_for_new_data,
-    dag=dag,
-)
+# task_check_data = PythonOperator(
+#     task_id='check_for_new_data',
+#     python_callable=check_for_new_data,
+#     dag=dag,
+# )
 
 task_consolidate = PythonOperator(
     task_id='consolidate_records',
@@ -228,4 +228,5 @@ task_load_supabase = PythonOperator(
 )
 
 # Set up the pipeline flow
-task_start_consumer >> task_check_data >> task_consolidate >> task_load_supabase
+# task_start_consumer >> task_check_data >> task_consolidate >> task_load_supabase 
+task_consolidate >> task_load_supabase
