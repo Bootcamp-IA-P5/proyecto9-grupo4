@@ -1,7 +1,7 @@
 from sqlalchemy import Column, BigInteger, ForeignKey, String
 from typing import List
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
@@ -9,7 +9,8 @@ class Person(Base):
     """
     Represents a person in the database.
     """
-    __tablename__ = 'PERSON' 
+    __tablename__ = 'PERSON'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)   # Unique identifier for the person
     passport = Column(String(255), nullable=False)                  # Passport number of the person
@@ -23,16 +24,16 @@ class Person(Base):
     # --- Relationships ---
 
     # One-to-many relationship with Bank
-    banks: Mapped[List["Bank"]] = relationship(
-        back_populates="person", cascade="all, delete-orphan"
+    banks: List["Bank"] = relationship(
+        "Bank", back_populates="person", cascade="all, delete-orphan"
     )
     # One-to-many relationship with Work
-    works: Mapped[List["Work"]] = relationship(
-        back_populates="person", cascade="all, delete-orphan"
+    works: List["Work"] = relationship(
+        "Work", back_populates="person", cascade="all, delete-orphan"
     )
     # One-to-many relationship to the PersonAddress association object
-    address_associations: Mapped[List["PersonAddress"]] = relationship(
-        back_populates="person", cascade="all, delete-orphan"
+    address_associations: List["PersonAddress"] = relationship(
+        "PersonAddress", back_populates="person", cascade="all, delete-orphan"
     )
 
     def __repr__(self):
@@ -44,6 +45,7 @@ class Address(Base):
     Represents a physical address in the database.
     """
     __tablename__ = 'ADDRESS'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)   # Unique identifier for the address
     street_name = Column(String(255), nullable=False)               # Street name of the address
@@ -59,8 +61,8 @@ class Address(Base):
     # --- Relationships ---
 
     # One-to-many relationship to the PersonAddress association object
-    person_associations: Mapped[List["PersonAddress"]] = relationship(
-        back_populates="address", cascade="all, delete-orphan"
+    person_associations: List["PersonAddress"] = relationship(
+        "PersonAddress", back_populates="address", cascade="all, delete-orphan"
     )
     
     def __repr__(self):
@@ -73,20 +75,21 @@ class PersonAddress(Base):
     and an address to be associated with multiple people.
     """
     __tablename__ = 'PERSON_ADDRESS'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     # --- Composite Primary Key ---
-    address_id: Mapped[int] = mapped_column(ForeignKey("ADDRESS.id"), primary_key=True) # Foreign key to ADDRESS.id
-    person_id: Mapped[int] = mapped_column(ForeignKey("PERSON.id"), primary_key=True)   # Foreign key to PERSON.id
+    address_id = Column(BigInteger, ForeignKey("ADDRESS.id"), primary_key=True) # Foreign key to ADDRESS.id
+    person_id = Column(BigInteger, ForeignKey("PERSON.id"), primary_key=True)   # Foreign key to PERSON.id
     
     # --- Attributes ---
-    type: Mapped[str] = mapped_column(String(255), nullable=False) # Type of address (e.g., 'Home', 'Work')
+    type = Column(String(255), nullable=False) # Type of address (e.g., 'Home', 'Work')
 
     # --- Relationships ---
 
     # Many-to-one relationship with Address
-    address: Mapped["Address"] = relationship(back_populates="person_associations")
+    address = relationship("Address", back_populates="person_associations")
     # Many-to-one relationship with Person
-    person: Mapped["Person"] = relationship(back_populates="address_associations")
+    person = relationship("Person", back_populates="address_associations")
     
     def __repr__(self):
         return f"PersonAddress(person_id={self.person_id}, address_id={self.address_id}, type='{self.type}')"
@@ -96,16 +99,17 @@ class Bank(Base):
     Represents bank details associated with a person.
     """
     __tablename__ = 'BANK'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)                           # Unique identifier for the bank record
-    person_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("PERSON.id"), nullable=False) # Foreign key to PERSON.id
+    person_id = Column(BigInteger, ForeignKey("PERSON.id"), nullable=False) # Foreign key to PERSON.id
     iban = Column(String, nullable=False)                                                   # IBAN of the bank account
     salary = Column(String, nullable=False)                                                 # Salary associated with the person
 
     # --- Relationships ---
 
     # Many-to-one relationship with Person
-    person: Mapped["Person"] = relationship(back_populates="banks")
+    person = relationship("Person", back_populates="banks")
     
     def __repr__(self):
         return f"Bank(id={self.id}, person_id={self.person_id}, iban='{self.iban}')"
@@ -115,6 +119,7 @@ class Work(Base):
     Represents work/employment details for a person.
     """
     __tablename__ = 'WORK'
+    __allow_unmapped__ = True  # Allow legacy annotations without Mapped[]
     
     id = Column(BigInteger, primary_key=True, autoincrement=True)           # Unique identifier for the work record
     person_id = Column(BigInteger, ForeignKey('PERSON.id'), nullable=False) # Foreign key to PERSON.id
@@ -126,7 +131,7 @@ class Work(Base):
     # --- Relationships ---
 
     # Many-to-one relationship with Person
-    person: Mapped["Person"] = relationship(back_populates="works")
+    person = relationship("Person", back_populates="works")
 
     def __repr__(self):
         return f"Work(id={self.id}, company='{self.company}', person_id={self.person_id})"

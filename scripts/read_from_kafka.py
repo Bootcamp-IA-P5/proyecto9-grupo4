@@ -14,7 +14,7 @@ import sys
 load_dotenv()
 
 # Configuration
-KAFKA_BOOTSTRAP_SERVERS = 'localhost:29092'  # Confluent Consumer uses string, not list
+KAFKA_BOOTSTRAP_SERVERS = 'kafka:9092'  # Connect to Kafka via Docker network ¡¡¡localhost is unreachable from inside Docker!!!
 KAFKA_TOPIC = 'probando'
 # Stable group ID - allows consumer to remember its position and resume from last committed offset
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'mongodb-consumer-stable')

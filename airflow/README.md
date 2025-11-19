@@ -17,26 +17,43 @@ docker-compose -f docker-compose-airflow.yml up -d
 - ✅ Automatically creates the `admin` user
 - ✅ Generates a secure password
 
-### 2. Get the Password
+### 2. Use the Configured Credentials
 
-Wait ~1 minute and run:
+The Docker compose file reads the admin credentials from your `.env` file (`AIRFLOW_ADMIN_USERNAME` / `AIRFLOW_ADMIN_PASSWORD`).
+
+1. Make sure those variables are present before starting the stack.
+2. After the containers are up, log in with the same values.
+3. If you want to double-check what Airflow loaded, you can still inspect the logs:
 
 ```bash
-docker logs airflow-webserver 2>&1 | grep -i password
-```
-
-You'll see something like:
-```
-Simple auth manager | Password for user 'admin': "PASSWORD_AIRFLOW"
+docker logs airflow-webserver 2>&1 | Select-String -Pattern "Password for user"
 ```
 
 ### 3. Access Airflow
 
 **URL:** http://localhost:8080
-- Usuario: `admin`
-- Password: La que obtuviste arriba
+- Usuario: `AIRFLOW_ADMIN_USERNAME` (from `.env`)
+- Password: `AIRFLOW_ADMIN_PASSWORD` (from `.env`)
 
-- Password: El que obtuviste arriba
+---
+
+### ♻️ Redeploying After Compose Changes
+
+Running more than one scheduler (for example by using `airflow standalone`) can delete serialized DAG metadata and produce errors such as `DAG '...' not found in serialized_dag table`. The compose file now starts a dedicated scheduler service and an API server-only service (Airflow 3 replaces the old `webserver` command with `airflow api-server`).
+
+Whenever you update `docker-compose-airflow.yml` or pull new changes:
+
+1. Stop the existing stack
+   ```bash
+   docker-compose -f docker-compose-airflow.yml down
+   ```
+2. Start it again with the new configuration
+   ```bash
+   docker-compose -f docker-compose-airflow.yml up -d
+   ```
+3. (Optional) Clear any stuck DAG runs from the Airflow UI before triggering a fresh `complete_etl_pipeline` run.
+
+This guarantees that only one scheduler is manipulating the metadata database and that tasks such as `load_to_supabase` can start normally.
 
 ---
 
@@ -54,7 +71,7 @@ docker-compose -f docker-compose-airflow.yml down -v
 
 **View logs in real-time:**
 ```bash
-docker logs -f airflow-webserver   # Webserver
+docker logs -f airflow-webserver   # API server (serves the UI)
 docker logs -f airflow-scheduler   # Scheduler
 ```
 

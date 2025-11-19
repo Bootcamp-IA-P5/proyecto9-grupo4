@@ -8,8 +8,15 @@ to a clean state.
 
 It can be run with a `--force` flag to bypass the interactive confirmation prompt.
 """
+import os
+import sys
 import argparse
 from sqlalchemy.exc import SQLAlchemyError
+
+# Add project root to Python path
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from src.database.write_to_postgresql import connect
 from src.database.models.sql import Base
