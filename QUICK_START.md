@@ -54,7 +54,7 @@ docker network connect data-engineering-educational-project_default airflow-webs
 ```bash
 curl -X POST "http://localhost:8080/api/v1/dags/complete_etl_pipeline/dagRuns" \
   -H "Content-Type: application/json" \
-  -u "admin:5eEy4GrQ6wa5zakR" \
+  -u "admin:<your_password_from_env>" \
   -d '{"conf":{}}'
 ```
 
