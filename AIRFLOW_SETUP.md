@@ -72,7 +72,7 @@ AIRFLOW_POSTGRES_DB=airflow
 
 # Airflow Admin Credentials (persisted in Docker volume)
 AIRFLOW_ADMIN_USERNAME=admin
-AIRFLOW_ADMIN_PASSWORD=5eEy4GrQ6wa5zakR  # Change this in production!
+AIRFLOW_ADMIN_PASSWORD=<your_secure_password>  # Change this to a strong password!
 AIRFLOW_POSTGRES_DB=airflow
 AIRFLOW_ADMIN_USERNAME=admin
 AIRFLOW_ADMIN_PASSWORD=your_secure_password
@@ -139,7 +139,7 @@ Navigate to: **http://localhost:8080**
 
 Use the credentials from your `.env` file:
 - **Username**: `admin`
-- **Password**: Value from `AIRFLOW_ADMIN_PASSWORD` in `.env` (default: `5eEy4GrQ6wa5zakR`)
+- **Password**: Value from `AIRFLOW_ADMIN_PASSWORD` in `.env`
 
 > **Note:** The password is stored in the `airflow-data` Docker volume at `/opt/airflow/simple_auth_manager_passwords.json.generated` and persists across container restarts. Change the default password in production!
 
