@@ -1,7 +1,8 @@
 version: '3.8'
 
 services:
-  postgres: #Airflow's metadata store
+  postgres:
+    #Airflow's metadata store
     image: postgres:13
     container_name: airflow-postgres
     environment:
@@ -13,8 +14,9 @@ services:
     ports:
       - "5432:5432" #PostgreSQL port 5432, allowing external connections if needed
 
-  airflow-webserver: #provides the web-based user interface for managing and monitoring workflows
-    image: apache/airflow:3.0.0
+  airflow-webserver:
+    #provides the web-based user interface for managing and monitoring workflows
+    image: apache/airflow:2.10.4
     container_name: airflow-webserver
     depends_on:
       - postgres
@@ -43,7 +45,16 @@ services:
     ports:
       - "8080:8080"
     command: airflow standalone
+    networks:
+      - default
+      - kafka-network
 
 volumes:
   postgres-db-volume:
   airflow-data:
+
+
+networks:
+  kafka-network:
+    name: data-generator_factoria_default
+    external: true

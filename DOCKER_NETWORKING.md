@@ -43,7 +43,7 @@ Since we cannot modify the Kafka configuration (it's an external data source sim
 ### Implementation
 
 ```bash
-docker network connect data-engineering-educational-project_default airflow-webserver
+docker network connect data-generator_factoria_default airflow-webserver
 ```
 
 This command connects the Airflow webserver container to the same network as Kafka, allowing it to use the internal listener `kafka:9092`.
@@ -80,7 +80,7 @@ This would allow external containers to connect via `host.docker.internal:29092`
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  data-engineering-educational-project_default   │
+│  data-generator_factoria_default                │
 │                                                  │
 │  ┌──────────┐     ┌───────────┐                │
 │  │ Kafka    │◄────┤ Zookeeper │                │

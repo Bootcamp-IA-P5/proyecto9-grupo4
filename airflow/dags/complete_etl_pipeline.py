@@ -14,6 +14,7 @@ from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 from datetime import datetime, timedelta
 import logging
+
 import os
 import sys
 from dotenv import load_dotenv
@@ -164,15 +165,11 @@ def run_consolidation(**context):
     sys.path.insert(0, PROJECT_ROOT)
     from scripts.mongo_consolidate import main as mongo_consolidate
     
-    logging.info("🔄 Running record consolidation...")
-    
     try:
         mongo_consolidate()
-        logging.info("✓ Consolidation completed successfully")
         return {'status': 'success'}
             
     except Exception as e:
-        logging.error(f"❌ Error during consolidation: {e}")
         raise
 
 

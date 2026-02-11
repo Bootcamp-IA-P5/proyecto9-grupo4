@@ -122,7 +122,7 @@ You should see:
 
 ```bash
 # Connect Airflow to Kafka's network
-docker network connect data-engineering-educational-project_default airflow-webserver
+docker network connect data-generator_factoria_default airflow-webserver
 ```
 
 This allows the Kafka consumer in the DAG to connect to `kafka:9092`.

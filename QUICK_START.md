@@ -15,7 +15,7 @@ This is a quick reference for launching the complete ETL pipeline.
 docker-compose -f docker-compose-airflow.yml up -d
 
 # 2. Connect Airflow to Kafka's network (allows kafka:9092 connectivity)
-docker network connect data-engineering-educational-project_default airflow-webserver
+docker network connect data-generator_factoria_default airflow-webserver
 
 # 3. Access Airflow UI
 # Open: http://localhost:8080
